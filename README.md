@@ -38,12 +38,12 @@ Generate professional standup reports from your GitHub activity using Claude AI.
 
 **User-level** (available in all projects):
 ```bash
-git clone <repo-url> ~/.claude/commands/claude-gh-standup/
+git clone https://github.com/jetmobsol/claude-gh-standup.git ~/.claude/commands/claude-gh-standup/
 ```
 
 **Project-level** (available only in current project):
 ```bash
-git clone <repo-url> .claude/commands/claude-gh-standup/
+git clone https://github.com/jetmobsol/claude-gh-standup.git .claude/commands/claude-gh-standup/
 ```
 
 After installation, restart Claude Code or reload commands.
