@@ -73,7 +73,8 @@ Before using this command, ensure you have:
 ## Invocation
 
 ```bash
-jbang $COMMAND_DIR/scripts/Main.java $ARGUMENTS
+
+jbang $COMMAND_DIR/scripts/Main.java --no-claude $ARGUMENTS
 ```
 
 ## Arguments Reference
@@ -86,6 +87,7 @@ jbang $COMMAND_DIR/scripts/Main.java $ARGUMENTS
 | `--format` | `-f` | String | `markdown` | Output format: `markdown`, `json`, or `html` |
 | `--team` | | String[] | None | Space-separated list of team members for aggregated report |
 | `--output` | `-o` | String | stdout | File path to save report (otherwise prints to console) |
+| `--no-claude` | | Boolean | `false` | Skip claude -p call and output prompt directly (auto-enabled in Claude Code) |
 
 ## Troubleshooting
 

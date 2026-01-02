@@ -32,6 +32,7 @@ public class Main {
         String format = "markdown";
         List<String> team = null;
         String output = null;
+        boolean noClaude = false;
     }
 
     public static Args parseArgs(String[] args) {
@@ -75,6 +76,9 @@ public class Main {
                         parsed.output = args[++i];
                     }
                     break;
+                case "--no-claude":
+                    parsed.noClaude = true;
+                    break;
                 case "--help":
                 case "-h":
                     printHelp();
@@ -98,6 +102,7 @@ public class Main {
         System.out.println("  --format, -f FMT    Output format: markdown, json, html (default: markdown)");
         System.out.println("  --team USERS...     Generate team report for multiple users");
         System.out.println("  --output, -o FILE   Write to file instead of stdout");
+        System.out.println("  --no-claude         Skip claude -p call and output prompt directly");
         System.out.println("  --help, -h          Show this help message");
     }
 
@@ -377,15 +382,21 @@ public class Main {
                     .replace("{{activities}}", formattedActivities)
                     .replace("{{diffs}}", diffSummary);
 
-            // Call claude -p with the full prompt (tac-1 pattern)
-            ProcessBuilder claudeBuilder = new ProcessBuilder("claude", "-p", fullPrompt);
-            claudeBuilder.inheritIO();
-            Process claudeProcess = claudeBuilder.start();
-            int claudeExitCode = claudeProcess.waitFor();
+            // Check if we should skip claude -p (when running inside Claude Code)
+            if (parsed.noClaude) {
+                // Output the prompt directly for Claude Code to process
+                System.out.println(fullPrompt);
+            } else {
+                // Call claude -p with the full prompt (tac-1 pattern)
+                ProcessBuilder claudeBuilder = new ProcessBuilder("claude", "-p", fullPrompt);
+                claudeBuilder.inheritIO();
+                Process claudeProcess = claudeBuilder.start();
+                int claudeExitCode = claudeProcess.waitFor();
 
-            if (claudeExitCode != 0) {
-                System.err.println("Claude invocation failed with exit code: " + claudeExitCode);
-                System.exit(claudeExitCode);
+                if (claudeExitCode != 0) {
+                    System.err.println("Claude invocation failed with exit code: " + claudeExitCode);
+                    System.exit(claudeExitCode);
+                }
             }
 
             // Note: Export formatting is handled by GenerateReport for now

@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(openspec list:*)"
+      "Bash(openspec list:*)",
+      "Bash(jbang:*)",
+      "Bash(tee:*)"
     ]
   }
 }
