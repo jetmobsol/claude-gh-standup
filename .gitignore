@@ -1,0 +1,15 @@
+# JBang cache
+.jbang/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp files
+*.tmp
+*.log
