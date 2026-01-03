@@ -23,7 +23,6 @@ No `dev` or `staging` branches - all changes merge directly to `master` (or `mai
 **What it does:**
 - 🏷️ Creates all required labels (status, type, priority, meta)
 - 🎯 Optionally creates initial milestone
-- 📋 Optionally validates project board (if configured)
 - ✅ Idempotent - safe to run multiple times
 
 **When to run:**
@@ -326,16 +325,14 @@ This integration is **simplified** for your Java/JBang project:
 1. ✅ **No dev branch** - Direct to master (simple branching)
 2. ✅ **No Node.js/pnpm** - Adapted for Java/JBang
 3. ✅ **Streamlined quality checks** - Java syntax + scripts only
-4. ✅ **No project board integration** - Can add later if needed
-5. ✅ **No milestone creation** - Can add later if needed
+4. ✅ **Optional milestone creation** - Can be enabled via workflow input
 
 ## Next Steps (Optional)
 
 Want even more automation? You can add:
 
 1. **Create Branch on Issue** - Auto-create branches from labeled issues
-2. **Project Board Integration** - Sync with GitHub Projects v2
-3. **Dependabot** - Automated dependency updates
+2. **Dependabot** - Automated dependency updates
 
 Let me know if you'd like to integrate any of these!
 

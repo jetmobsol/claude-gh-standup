@@ -89,5 +89,5 @@ runs:
       shell: bash
       run: |
         if [[ "${{ steps.check-fork.outputs.is-fork }}" == "true" ]]; then
-          echo "::warning::This PR is from a fork. Write operations (issue updates, project board sync, etc.) will be skipped for security."
+          echo "::warning::This PR is from a fork. Write operations (issue updates, etc.) will be skipped for security."
         fi
