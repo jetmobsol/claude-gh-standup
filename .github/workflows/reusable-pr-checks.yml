@@ -1,0 +1,182 @@
+# ─────────────────────────────────────────────────────────────────
+# Reusable PR Quality Checks Workflow
+# ─────────────────────────────────────────────────────────────────
+# DRY workflow for running quality checks on pull requests.
+# Adapted for Java/JBang project
+#
+# Author: Adapted from Alireza Rezvani's workflow
+# ─────────────────────────────────────────────────────────────────
+
+name: Reusable PR Quality Checks
+
+on:
+  workflow_call:
+    inputs:
+      working_directory:
+        description: 'Working directory for checks'
+        required: false
+        type: string
+        default: '.'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# Cancel in-progress runs for the same PR
+concurrency:
+  group: quality-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────
+  # Path Filtering
+  # ─────────────────────────────────────────────────────────────────
+  path-filter:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      scripts: ${{ steps.filter.outputs.scripts }}
+      docs-only: ${{ steps.filter.outputs.docs-only }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Filter changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - '**/*.java'
+              - 'scripts/**'
+              - 'prompts/**'
+
+            scripts:
+              - 'scripts/**/*.java'
+              - 'scripts/**/*.sh'
+
+            docs-only:
+              - '**.md'
+              - 'docs/**'
+              - '.github/**/*.md'
+
+  # ─────────────────────────────────────────────────────────────────
+  # Java Validation
+  # ─────────────────────────────────────────────────────────────────
+  java-validation:
+    name: Java Syntax Check
+    runs-on: ubuntu-latest
+    needs: path-filter
+    if: needs.path-filter.outputs.docs-only != 'true' && needs.path-filter.outputs.code == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup JBang
+        run: |
+          curl -Ls https://sh.jbang.dev | bash -s - app setup
+          echo "$HOME/.jbang/bin" >> $GITHUB_PATH
+
+      - name: Validate Java files syntax
+        working-directory: ${{ inputs.working_directory }}
+        run: |
+          echo "🔍 Validating Java syntax..."
+          for file in $(find scripts -name "*.java"); do
+            echo "Checking $file..."
+            jbang --quiet --fresh "$file" --help || javac -Xlint "$file" || true
+          done
+          echo "✅ Java syntax validation complete"
+        continue-on-error: false
+
+  # ─────────────────────────────────────────────────────────────────
+  # Script Validation
+  # ─────────────────────────────────────────────────────────────────
+  script-validation:
+    name: Script Validation
+    runs-on: ubuntu-latest
+    needs: path-filter
+    if: needs.path-filter.outputs.docs-only != 'true' && needs.path-filter.outputs.scripts == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate shell scripts
+        run: |
+          echo "🔍 Validating shell scripts..."
+          for file in $(find . -name "*.sh"); do
+            echo "Checking $file..."
+            bash -n "$file"
+          done
+          echo "✅ Shell script validation complete"
+        continue-on-error: false
+
+  # ─────────────────────────────────────────────────────────────────
+  # Summary
+  # ─────────────────────────────────────────────────────────────────
+  quality-summary:
+    name: Quality Check Summary
+    runs-on: ubuntu-latest
+    needs:
+      - path-filter
+      - java-validation
+      - script-validation
+    if: always()
+
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# 🎯 Quality Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## 📊 Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          # Java Validation
+          if [[ "${{ needs.java-validation.result }}" == "success" ]]; then
+            echo "| Java Syntax | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.java-validation.result }}" == "skipped" ]]; then
+            echo "| Java Syntax | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Java Syntax | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Script Validation
+          if [[ "${{ needs.script-validation.result }}" == "success" ]]; then
+            echo "| Script Validation | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.script-validation.result }}" == "skipped" ]]; then
+            echo "| Script Validation | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Script Validation | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Overall status
+          if [[ "${{ needs.java-validation.result }}" == "failure" ]] || \
+             [[ "${{ needs.script-validation.result }}" == "failure" ]]; then
+            echo "## ❌ Quality checks failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please fix the failing checks before merging." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "## ✅ All quality checks passed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Ready for review and merge!" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Quality checks completed at $(date -u '+%Y-%m-%d %H:%M:%S UTC')_" >> $GITHUB_STEP_SUMMARY

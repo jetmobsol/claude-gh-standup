@@ -113,7 +113,7 @@ prompts/
 └── team.prompt.md         # Team aggregation prompt template
 ```
 
-**Key Pattern** (from [tac-1](https://github.com/tac-1)):
+**Key Pattern**:
 ```java
 ProcessBuilder pb = new ProcessBuilder("claude", "-p", fullPrompt);
 pb.inheritIO();  // Seamlessly pipes claude output to stdout
@@ -195,7 +195,6 @@ This project includes attribution to the original [gh-standup](https://github.co
 ## Related Projects
 
 - [gh-standup](https://github.com/sgoedecke/gh-standup) - Original Go-based GitHub CLI extension
-- [tac-1](https://github.com/tac-1) - JBang + ProcessBuilder pattern reference
 - [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) - Official Claude Code documentation
 
 ---
