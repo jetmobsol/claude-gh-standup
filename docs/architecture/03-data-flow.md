@@ -50,10 +50,10 @@ flowchart TB
     TeamFlow -.->|Future| TeamAgg[Team Aggregator]
     TeamAgg -.-> Display
 
-    style Start fill:#e1f5ff
-    style Display fill:#e1ffe1
-    style Claude fill:#ffe1e1
-    style Activity fill:#fff5e1
+    style Start fill:#e1f5ff,color:#000
+    style Display fill:#e1ffe1,color:#000
+    style Claude fill:#ffe1e1,color:#000
+    style Activity fill:#fff5e1,color:#000
 ```
 
 ## Data Transformation Pipeline
@@ -79,7 +79,7 @@ graph LR
     GitRemote --> Context
     GhUser --> Context
 
-    style Context fill:#fff5e1
+    style Context fill:#fff5e1,color:#000
 ```
 
 ### Stage 2: Activity Collection
@@ -110,7 +110,7 @@ graph TB
     R2 --> Activity
     R3 --> Activity
 
-    style Activity fill:#e1ffe1
+    style Activity fill:#e1ffe1,color:#000
 ```
 
 ### Stage 3: Diff Analysis
@@ -145,7 +145,7 @@ graph TB
     Aggregate --> Format
     Format --> Summary
 
-    style Summary fill:#f5e1ff
+    style Summary fill:#f5e1ff,color:#000
 ```
 
 ### Stage 4: Report Generation
@@ -184,7 +184,7 @@ graph TB
     Claude --> Stream
     Stream --> Report
 
-    style Report fill:#e1ffe1
+    style Report fill:#e1ffe1,color:#000
 ```
 
 ## Data Formats
@@ -330,9 +330,9 @@ graph LR
     I[Claude fails] -->|exit code| J[Propagate error]
     J --> K[Exit with failure]
 
-    style C fill:#ffe1e1
-    style F fill:#ffe1e1
-    style K fill:#ff9999
+    style C fill:#ffe1e1,color:#000
+    style F fill:#ffe1e1,color:#000
+    style K fill:#ff9999,color:#000
 ```
 
 ### Memory Efficiency

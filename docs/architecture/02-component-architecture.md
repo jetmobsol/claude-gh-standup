@@ -57,14 +57,14 @@ graph TB
 
     Export -.->|Future: Format| Export
 
-    style CMD fill:#e1f5ff
-    style Main fill:#fff5e1
-    style Collect fill:#ffe1f5
-    style Analyze fill:#f5e1ff
-    style Generate fill:#e1ffe1
-    style Team fill:#ffe1e1
-    style Prompt1 fill:#f0f0f0
-    style Prompt2 fill:#f0f0f0
+    style CMD fill:#e1f5ff,color:#000
+    style Main fill:#fff5e1,color:#000
+    style Collect fill:#ffe1f5,color:#000
+    style Analyze fill:#f5e1ff,color:#000
+    style Generate fill:#e1ffe1,color:#000
+    style Team fill:#ffe1e1,color:#000
+    style Prompt1 fill:#f0f0f0,color:#000
+    style Prompt2 fill:#f0f0f0,color:#000
 ```
 
 ## Component Descriptions
@@ -270,10 +270,10 @@ graph LR
 
     Team -.->|Future| Generate
 
-    style Main fill:#fff5e1
-    style Collect fill:#ffe1f5
-    style Analyze fill:#f5e1ff
-    style Generate fill:#e1ffe1
+    style Main fill:#fff5e1,color:#000
+    style Collect fill:#ffe1f5,color:#000
+    style Analyze fill:#f5e1ff,color:#000
+    style Generate fill:#e1ffe1,color:#000
 ```
 
 ## Error Handling Strategy

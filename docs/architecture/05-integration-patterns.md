@@ -54,11 +54,11 @@ graph TB
         Diff -->|Unified diff| Parse[Parse diff format]
     end
 
-    style API fill:#e1f5ff
-    style Commits fill:#ffe1f5
-    style PRs fill:#ffe1f5
-    style Issues fill:#ffe1f5
-    style Diff fill:#f5e1ff
+    style API fill:#e1f5ff,color:#000
+    style Commits fill:#ffe1f5,color:#000
+    style PRs fill:#ffe1f5,color:#000
+    style Issues fill:#ffe1f5,color:#000
+    style Diff fill:#f5e1ff,color:#000
 ```
 
 ### Search Query Construction
@@ -178,8 +178,8 @@ graph TB
     NoRemote --> Null
     NotGitHub --> Null
 
-    style Result fill:#e1ffe1
-    style Null fill:#ffe1e1
+    style Result fill:#e1ffe1,color:#000
+    style Null fill:#ffe1e1,color:#000
 ```
 
 ### URL Parsing Logic
@@ -282,8 +282,8 @@ graph TB
         S2 -->|Real-time| S3[User sees output]
     end
 
-    style S2 fill:#e1ffe1
-    style T2 fill:#ffe1e1
+    style S2 fill:#e1ffe1,color:#000
+    style T2 fill:#ffe1e1,color:#000
 ```
 
 **Benefits of inheritIO**:
@@ -343,9 +343,9 @@ graph TB
     Collect -->|ProcessBuilder| GH2
     Analyze -->|ProcessBuilder| GH3
 
-    style Main fill:#fff5e1
-    style Collect fill:#ffe1f5
-    style Analyze fill:#f5e1ff
+    style Main fill:#fff5e1,color:#000
+    style Collect fill:#ffe1f5,color:#000
+    style Analyze fill:#f5e1ff,color:#000
 ```
 
 ### JBang Subprocess Invocation
@@ -408,8 +408,8 @@ graph LR
     C4 --> M3
     M3 --> M4
 
-    style M2 fill:#e1f5ff
-    style C4 fill:#ffe1f5
+    style M2 fill:#e1f5ff,color:#000
+    style C4 fill:#ffe1f5,color:#000
 ```
 
 **Communication protocol**:
@@ -452,8 +452,8 @@ graph TB
     Generate -->|Success| Success[Success<br/>Exit 0]
     Generate -->|Failure| Error
 
-    style Success fill:#e1ffe1
-    style Error fill:#ffe1e1
+    style Success fill:#e1ffe1,color:#000
+    style Error fill:#ffe1e1,color:#000
 ```
 
 ### Warning vs. Error Policy
@@ -519,10 +519,10 @@ graph TB
     GH <-->|Authenticated| GitHub
     Claude <-->|Authenticated| Anthropic
 
-    style Main fill:#fff5e1
-    style Git fill:#e1f5ff
-    style GH fill:#e1f5ff
-    style Claude fill:#e1ffe1
+    style Main fill:#fff5e1,color:#000
+    style Git fill:#e1f5ff,color:#000
+    style GH fill:#e1f5ff,color:#000
+    style Claude fill:#e1ffe1,color:#000
 ```
 
 **Key integration principles**:

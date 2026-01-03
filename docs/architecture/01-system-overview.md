@@ -36,10 +36,10 @@ graph TB
 
     Claude -->|Standup Report| User
 
-    style User fill:#e1f5ff
-    style CLI fill:#ffe1f5
-    style Main fill:#fff5e1
-    style Claude fill:#e1ffe1
+    style User fill:#e1f5ff,color:#000
+    style CLI fill:#ffe1f5,color:#000
+    style Main fill:#fff5e1,color:#000
+    style Claude fill:#e1ffe1,color:#000
 ```
 
 ## Key Characteristics
