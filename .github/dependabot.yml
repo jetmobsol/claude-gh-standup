@@ -1,0 +1,29 @@
+# Dependabot configuration for automated dependency updates
+# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+
+version: 2
+updates:
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "type:deps"
+      - "priority:low"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    open-pull-requests-limit: 5
+
+  # Java dependencies (if you add Maven/Gradle later)
+  # Uncomment when you have a pom.xml or build.gradle
+  # - package-ecosystem: "maven"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+  #   labels:
+  #     - "dependencies"
+  #     - "type:deps"
+  #     - "priority:low"

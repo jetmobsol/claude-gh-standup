@@ -1,0 +1,215 @@
+# ═══════════════════════════════════════════════════════════════════
+# Create Branch on Issue - Automated Branch Creation
+# ═══════════════════════════════════════════════════════════════════
+#
+# Automatically creates feature branches when issues are labeled as ready.
+#
+# Triggers:
+#   - Issue labeled with 'status:ready'
+#
+# What it does:
+#   - Creates branch with name: {type}/issue-{number}-{slug}
+#   - Posts checkout instructions as comment
+#   - Updates issue to 'status:in-progress'
+#
+# Adapted from: https://github.com/alirezarezvani/claude-code-github-workflow
+# ═══════════════════════════════════════════════════════════════════
+
+name: Create Branch on Issue
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: read
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # Job 1: Validate that issue has required labels
+  # ─────────────────────────────────────────────────────────────
+  validate:
+    name: Validate Issue Labels
+    runs-on: ubuntu-latest
+    if: github.event.label.name == 'status:ready'
+    outputs:
+      should_create: ${{ steps.check.outputs.should_create }}
+      branch_type: ${{ steps.check.outputs.branch_type }}
+    steps:
+      - name: Check if issue has required labels
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+
+          # Get all labels for this issue
+          LABELS=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER --jq '.labels[].name' | tr '\n' ' ')
+
+          echo "Issue #$ISSUE_NUMBER labels: $LABELS"
+
+          # Check if issue has status:ready
+          if echo "$LABELS" | grep -q "status:ready"; then
+            echo "✅ Issue has status:ready label"
+            echo "should_create=true" >> $GITHUB_OUTPUT
+
+            # Determine branch type from labels
+            if echo "$LABELS" | grep -q "type:fix"; then
+              echo "branch_type=fix" >> $GITHUB_OUTPUT
+            elif echo "$LABELS" | grep -q "type:hotfix"; then
+              echo "branch_type=hotfix" >> $GITHUB_OUTPUT
+            else
+              echo "branch_type=feature" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⏭️ Issue doesn't have status:ready - skipping"
+            echo "should_create=false" >> $GITHUB_OUTPUT
+          fi
+
+  # ─────────────────────────────────────────────────────────────
+  # Job 2: Create Branch
+  # ─────────────────────────────────────────────────────────────
+  create-branch:
+    name: Create Branch
+    needs: validate
+    if: needs.validate.outputs.should_create == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      branch_name: ${{ steps.create.outputs.branch_name }}
+      branch_exists: ${{ steps.create.outputs.branch_exists }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create branch from main
+        id: create
+        env:
+          BRANCH_TYPE: ${{ needs.validate.outputs.branch_type }}
+        run: |
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+
+          # Create slug from issue title (lowercase, replace spaces with hyphens)
+          SLUG=$(echo "$ISSUE_TITLE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-50)
+
+          BRANCH_NAME="${BRANCH_TYPE}/issue-${ISSUE_NUMBER}-${SLUG}"
+
+          echo "Branch name: $BRANCH_NAME"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+          # Check if branch already exists
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "⏭️ Branch already exists - skipping creation"
+            echo "branch_exists=true" >> $GITHUB_OUTPUT
+          else
+            # Create branch from main
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+
+            git checkout -b "$BRANCH_NAME" origin/main
+            git push -u origin "$BRANCH_NAME"
+
+            echo "✅ Created branch: $BRANCH_NAME"
+            echo "branch_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+  # ─────────────────────────────────────────────────────────────
+  # Job 3: Comment on Issue with Instructions
+  # ─────────────────────────────────────────────────────────────
+  comment:
+    name: Add Checkout Instructions
+    needs: [validate, create-branch]
+    if: needs.validate.outputs.should_create == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post comment with checkout instructions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH_NAME: ${{ needs.create-branch.outputs.branch_name }}
+          BRANCH_EXISTS: ${{ needs.create-branch.outputs.branch_exists }}
+        run: |
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+
+          if [ "$BRANCH_EXISTS" = "true" ]; then
+            COMMENT="## ⏭️ Branch Already Exists
+
+Branch \`$BRANCH_NAME\` already exists for this issue.
+
+### Checkout locally:
+\`\`\`bash
+git fetch origin
+git checkout $BRANCH_NAME
+\`\`\`
+
+### Or view on GitHub:
+https://github.com/${{ github.repository }}/tree/$BRANCH_NAME"
+          else
+            COMMENT="## ✅ Branch Created
+
+A new branch has been created for this issue: \`$BRANCH_NAME\`
+
+### Checkout locally:
+\`\`\`bash
+git fetch origin
+git checkout $BRANCH_NAME
+\`\`\`
+
+### Or create a PR:
+Once you've made your changes, create a pull request:
+\`\`\`bash
+gh pr create --title \"${{ needs.validate.outputs.branch_type }}: ${{ github.event.issue.title }}\" --body \"Closes #$ISSUE_NUMBER\"
+\`\`\`
+
+### View on GitHub:
+https://github.com/${{ github.repository }}/tree/$BRANCH_NAME
+
+---
+🤖 *Automated by GitHub Actions*"
+          fi
+
+          gh issue comment $ISSUE_NUMBER --body "$COMMENT"
+
+      - name: Update issue to in-progress
+        if: needs.create-branch.outputs.branch_exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+
+          # Remove status:ready and add status:in-progress
+          gh issue edit $ISSUE_NUMBER --remove-label "status:ready" --add-label "status:in-progress"
+
+  # ─────────────────────────────────────────────────────────────
+  # Job 4: Generate Summary
+  # ─────────────────────────────────────────────────────────────
+  summary:
+    name: Workflow Summary
+    needs: [validate, create-branch, comment]
+    if: always() && needs.validate.outputs.should_create == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # Create Branch on Issue - Summary
+
+          **Issue:** #${{ github.event.issue.number }} - ${{ github.event.issue.title }}
+
+          **Branch:** \`${{ needs.create-branch.outputs.branch_name }}\`
+
+          **Status:** ${{ needs.create-branch.outputs.branch_exists == 'true' && '⏭️ Already Existed' || '✅ Created' }}
+
+          **Type:** ${{ needs.validate.outputs.branch_type }}
+
+          **Next Steps:**
+          1. Checkout the branch locally
+          2. Make your changes
+          3. Create a pull request linking to issue #${{ github.event.issue.number }}
+
+          ---
+          🤖 *Automated by GitHub Actions*
+          EOF
