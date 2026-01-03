@@ -46,7 +46,7 @@
 - [ ] 5.4 Implement `formatDiffs()` for AI-readable diff summary
 - [ ] 5.5 Implement variable injection (`.replace("{{activities}}", ...)`)
 - [ ] 5.6 Implement ProcessBuilder for `claude -p` invocation
-- [ ] 5.7 Use `processBuilder.inheritIO()` pattern from tac-1
+- [ ] 5.7 Use `processBuilder.inheritIO()` pattern for seamless output
 - [ ] 5.8 Implement error handling for Claude invocation failures
 - [ ] 5.9 Test with mock activities and diffs data
 - [ ] 5.10 Verify AI output quality with real GitHub data
@@ -109,7 +109,7 @@
 - [ ] 10.7 Add architecture diagram or explanation
 - [ ] 10.8 Create example outputs in `examples/` directory
 - [ ] 10.9 Add troubleshooting section to README
-- [ ] 10.10 Document JBang pattern and tac-1 reference
+- [ ] 10.10 Document JBang pattern
 
 ## 11. Example Outputs
 - [ ] 11.1 Generate sample Markdown report and save to `examples/sample_output.md`

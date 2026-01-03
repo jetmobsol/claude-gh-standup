@@ -171,7 +171,6 @@ Please open an issue or submit a pull request to fix.
 
 ### Related Projects
 - [gh-standup](https://github.com/sgoedecke/gh-standup) - Original inspiration (Go-based)
-- [tac-1](https://github.com/tac-1) - JBang + ProcessBuilder pattern reference
 - [Claude Code Docs](https://docs.anthropic.com/claude/docs/claude-code) - Official Claude Code documentation
 
 ## Feedback

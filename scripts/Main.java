@@ -369,7 +369,7 @@ public class Main {
 
             System.err.println("Generating standup report...");
 
-            // Call claude directly (like tac-1 pattern) instead of through GenerateReport.java subprocess
+            // Call claude directly instead of through GenerateReport.java subprocess
             Path promptPath = Paths.get("prompts/standup.prompt.md");
             String promptTemplate = Files.readString(promptPath);
 
@@ -387,7 +387,7 @@ public class Main {
                 // Output the prompt directly for Claude Code to process
                 System.out.println(fullPrompt);
             } else {
-                // Call claude -p with the full prompt (tac-1 pattern)
+                // Call claude -p with the full prompt
                 ProcessBuilder claudeBuilder = new ProcessBuilder("claude", "-p", fullPrompt);
                 claudeBuilder.inheritIO();
                 Process claudeProcess = claudeBuilder.start();

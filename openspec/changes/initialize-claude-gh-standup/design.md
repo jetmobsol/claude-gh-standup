@@ -7,7 +7,7 @@ This project reimplements the core functionality of [gh-standup](https://github.
 **Background**:
 - Original gh-standup requires GitHub Models API access and API key management
 - Claude Code ecosystem benefits from slash commands that integrate with existing `claude` CLI
-- JBang pattern (from `/Users/garden/projects/tac/tac-1`) enables single-file Java scripts without compilation
+- JBang pattern enables single-file Java scripts without compilation
 
 **Constraints**:
 - Must use `gh` CLI (GitHub CLI) for all GitHub API access (no direct API calls)
@@ -46,7 +46,7 @@ This project reimplements the core functionality of [gh-standup](https://github.
 **Rationale**:
 - **Type Safety**: Java's strong typing prevents runtime errors in activity/diff parsing
 - **ProcessBuilder API**: More robust than Python's subprocess module for CLI integration
-- **Proven Pattern**: Based on `/Users/garden/projects/tac/tac-1/programmable/programmable.java`
+- **Proven Pattern**: JBang + ProcessBuilder + inheritIO()
 - **Performance**: Better for subprocess-heavy workloads
 - **Cross-Platform**: JBang handles Java installation automatically
 - **Dependency Management**: `//DEPS` comments vs. requirements.txt
@@ -69,7 +69,7 @@ This project reimplements the core functionality of [gh-standup](https://github.
 - **No API Key Setup**: Users already authenticated with Claude Code
 - **Consistent UX**: Matches how Claude Code itself uses Claude
 - **Simpler Installation**: No API key environment variables
-- **InheritIO Pattern**: Seamless output piping from tac-1 example
+- **InheritIO Pattern**: Seamless output piping using ProcessBuilder.inheritIO()
 
 **Alternatives Considered**:
 - Anthropic API SDK: More control but requires ANTHROPIC_API_KEY management
@@ -342,7 +342,6 @@ No migration from existing systems required.
 ## References
 
 **Pattern Sources**:
-- `/Users/garden/projects/tac/tac-1/programmable/programmable.java` - JBang + ProcessBuilder + inheritIO()
 - `/Users/garden/projects/ai/sgoedecke/gh-standup` - Prompt templates and GitHub API patterns
 
 **External Documentation**:

@@ -81,7 +81,7 @@ Split functionality into 6 independent capabilities, each with its own Java scri
 5. `team-aggregation` → `TeamAggregator.java`
 6. `slash-command-interface` → `Main.java`
 
-**ProcessBuilder Pattern** (from tac-1 reference):
+**ProcessBuilder Pattern**:
 ```java
 ProcessBuilder pb = new ProcessBuilder("claude", "-p", fullPrompt);
 pb.inheritIO();  // Pipes stdout/stderr to current process
@@ -280,11 +280,6 @@ Traditional standup format adapted to GitHub activity:
    - Purpose: Prompt template inspiration
    - Language: Go
    - Architecture: GitHub CLI extension using GitHub Models API
-
-2. **tac-1** (`/Users/garden/projects/tac/tac-1`)
-   - Purpose: JBang + ProcessBuilder pattern reference
-   - Files: `programmable/programmable.java`, `programmable/prompt_java.md`
-   - Key Pattern: `processBuilder.inheritIO()` for CLI integration
 
 ## Installation Paths
 

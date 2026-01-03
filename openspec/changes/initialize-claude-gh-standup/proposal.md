@@ -30,7 +30,7 @@ This is a **new project initialization** creating a Claude Code slash command fr
 - Markdown prompt templates with variable injection
 
 **Reference Projects**:
-- Pattern source: `/Users/garden/projects/tac/tac-1` (JBang + `claude -p` integration)
+- Pattern: JBang + `claude -p` integration
 - Prompt source: `/Users/garden/projects/ai/sgoedecke/gh-standup` (Go-based GitHub CLI extension)
 
 ## Impact

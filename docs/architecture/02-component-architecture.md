@@ -238,7 +238,7 @@ Process process = pb.start();
 ```
 
 ### inheritIO Streaming Pattern
-Direct output piping (tac-1 pattern):
+Direct output piping:
 ```java
 ProcessBuilder claudeBuilder = new ProcessBuilder("claude", "-p", fullPrompt);
 claudeBuilder.inheritIO();  // No buffering

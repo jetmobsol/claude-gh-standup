@@ -133,7 +133,7 @@ graph TB
 **Rationale**:
 - Real-time user feedback
 - No memory buffering overhead
-- Matches tac-1 pattern from inspiration repos
+- JBang + ProcessBuilder pattern for seamless integration
 - Natural CLI experience
 
 **Trade-offs**:
