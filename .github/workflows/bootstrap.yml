@@ -74,11 +74,11 @@ jobs:
             # Check if label exists
             if gh label list --json name --jq ".[].name" | grep -q "^${name}$"; then
               echo "⏭️  Label '$name' already exists - skipping"
-              ((SKIPPED_COUNT++))
+              SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
             else
               gh label create "$name" --description "$description" --color "$color"
               echo "✅ Created label: $name"
-              ((CREATED_COUNT++))
+              CREATED_COUNT=$((CREATED_COUNT + 1))
             fi
           }
 
