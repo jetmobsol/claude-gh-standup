@@ -16,7 +16,115 @@ No `dev` or `staging` branches - all changes merge directly to `master` (or `mai
 
 ## Installed Workflows
 
-### 1. PR into Main (`pr-into-main.yml`)
+### 1. Bootstrap Repository (`bootstrap.yml`)
+
+**Triggers:** Manual only (`workflow_dispatch`)
+
+**What it does:**
+- 🏷️ Creates all required labels (status, type, priority, meta)
+- 🎯 Optionally creates initial milestone
+- 📋 Optionally validates project board (if configured)
+- ✅ Idempotent - safe to run multiple times
+
+**When to run:**
+- **Once** when setting up the repository for the first time
+- Run again if you need to add missing labels
+
+**How to run:**
+```bash
+# Via GitHub UI:
+# Actions → Bootstrap Repository → Run workflow
+
+# Via gh CLI:
+gh workflow run bootstrap.yml
+```
+
+**Created Labels:**
+- **Status:** `status:to-triage`, `status:ready`, `status:in-progress`, `status:in-review`, `status:done`
+- **Type:** `type:feature`, `type:fix`, `type:hotfix`, `type:docs`, `type:refactor`, `type:test`
+- **Priority:** `priority:critical`, `priority:high`, `priority:medium`, `priority:low`
+- **Meta:** `claude-code`, `dependencies`, `good first issue`, `help wanted`
+
+### 2. Claude Plan to Issues (`claude-plan-to-issues.yml`)
+
+**Triggers:** Manual only (`workflow_dispatch`)
+
+**What it does:**
+- 📋 Converts Claude Code plans (JSON) into GitHub issues
+- 🏷️ Auto-labels issues based on type and priority
+- 🎯 Creates/assigns to milestones
+- 🔗 Links dependencies between issues
+- ✅ Idempotent - skips existing issues with same title
+- ⚡ Max 10 tasks per plan (for performance)
+
+**How to use:**
+
+1. **In Claude Code, create a plan:**
+   ```
+   "Create a plan for adding JSON export feature with 3 tasks"
+   ```
+
+2. **Claude generates a plan JSON** (simplified example):
+   ```json
+   {
+     "tasks": [
+       {
+         "title": "Add JSON serializer",
+         "description": "Implement JSON serialization for activity data",
+         "type": "feature",
+         "priority": "high",
+         "acceptanceCriteria": ["Serialize all activity types", "Handle edge cases"]
+       },
+       {
+         "title": "Add CLI flag for JSON export",
+         "description": "Update CLI to support --format=json",
+         "type": "feature",
+         "priority": "medium"
+       },
+       {
+         "title": "Add tests for JSON export",
+         "description": "Test JSON export functionality",
+         "type": "test",
+         "priority": "high"
+       }
+     ]
+   }
+   ```
+
+3. **Run the workflow:**
+   ```bash
+   # Via GitHub UI:
+   # Actions → Claude Plan to Issues → Run workflow → Paste JSON
+
+   # Via gh CLI:
+   gh workflow run claude-plan-to-issues.yml \
+     -f plan_json='{"tasks":[...]}' \
+     -f milestone_title="v1.2 Release" \
+     -f milestone_due_date="2026-02-01"
+   ```
+
+4. **Result:** Creates 3 GitHub issues with:
+   - Proper labels (`claude-code`, `type:feature`, `priority:high`, etc.)
+   - Acceptance criteria as task lists
+   - All assigned to milestone "v1.2 Release"
+
+**Plan JSON Format:**
+```json
+{
+  "tasks": [
+    {
+      "title": "Issue title",
+      "description": "Issue description",
+      "type": "feature|fix|docs|refactor|test|hotfix",
+      "priority": "low|medium|high|critical",
+      "acceptanceCriteria": ["Criterion 1", "Criterion 2"],
+      "dependencies": [1, 2]  // Issue numbers this depends on
+    }
+  ]
+}
+```
+
+### 3. PR into Main (`pr-into-main.yml`)
 
 **Triggers:** When a PR is opened, synchronized, or marked ready for review to `master` or `main`
 
@@ -53,7 +161,7 @@ Fixes #456
 Relates to #789
 ```
 
-### 2. PR Status Sync (`pr-status-sync.yml`)
+### 4. PR Status Sync (`pr-status-sync.yml`)
 
 **Triggers:** PR lifecycle events (opened, closed, merged, draft conversion)
 
@@ -64,7 +172,7 @@ Relates to #789
 - 📋 PR draft → Comments on linked issues: "In Progress"
 - 🗑️ Auto-deletes merged branches (except protected branches)
 
-### 3. Reusable PR Quality Checks (`reusable-pr-checks.yml`)
+### 5. Reusable PR Quality Checks (`reusable-pr-checks.yml`)
 
 **Used by:** `pr-into-main.yml`
 
@@ -103,6 +211,31 @@ To fully benefit from these workflows, configure branch protection on `master`:
      - `Quality Check Summary`
    - ✅ Require conversation resolution before merging
    - ✅ Do not allow bypassing the above settings
+
+## Getting Started
+
+### Step 1: Run Bootstrap (One-Time Setup)
+
+```bash
+# Via GitHub UI:
+# Go to Actions → Bootstrap Repository → Run workflow
+
+# Via gh CLI:
+gh workflow run bootstrap.yml
+```
+
+This creates all the labels you'll need for issue management.
+
+### Step 2: Create Issues (Optional - Using Claude Plan)
+
+If you have a plan from Claude Code, convert it to issues:
+
+```bash
+gh workflow run claude-plan-to-issues.yml \
+  -f plan_json='{"tasks":[...]}'
+```
+
+Or create issues manually with the labels from bootstrap.
 
 ## First PR Workflow
 
@@ -198,12 +331,11 @@ This integration is **simplified** for your Java/JBang project:
 
 ## Next Steps (Optional)
 
-Want more automation? You can add:
+Want even more automation? You can add:
 
-1. **Claude Plan to Issues** - Convert Claude plans to GitHub issues
-2. **Bootstrap Workflow** - One-time repository setup
-3. **Create Branch on Issue** - Auto-create branches from issues
-4. **Project Board Integration** - Sync with GitHub Projects v2
+1. **Create Branch on Issue** - Auto-create branches from labeled issues
+2. **Project Board Integration** - Sync with GitHub Projects v2
+3. **Dependabot** - Automated dependency updates
 
 Let me know if you'd like to integrate any of these!
 
