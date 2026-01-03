@@ -1,125 +1,109 @@
-# Contributing to claude-gh-standup
+# Contributing Guide
 
-Thank you for your interest in contributing to claude-gh-standup!
+Thank you for contributing to claude-gh-standup! This guide will help you understand our workflow.
 
-## Development Setup
+## Development Workflow
 
-1. **Clone the repository**:
-   ```bash
-   git clone <repo-url>
-   cd claude-gh-standup
-   ```
+### 1. Create an Issue
 
-2. **Install prerequisites**:
-   - GitHub CLI: `brew install gh` (macOS) or see https://github.com/cli/cli#installation
-   - JBang: `curl -Ls https://sh.jbang.dev | bash -s - app setup`
-   - Claude Code CLI
+Before making changes, create an issue describing:
+- What you want to add/fix
+- Why it's needed
+- Acceptance criteria
 
-3. **Authenticate with GitHub**:
-   ```bash
-   gh auth login
-   ```
+### 2. Create a Feature Branch
 
-## Testing
+Branch names must follow this pattern:
+```
+feature/<issue-number>-brief-description
+fix/<issue-number>-brief-description
+hotfix/<issue-number>-brief-description
+```
 
-### Test Individual Scripts
+Example:
+```bash
+git checkout -b feature/issue-42-add-json-export
+```
 
-Each Java script can be tested independently:
+### 3. Make Your Changes
+
+- Write clean, documented code
+- Follow existing code style
+- Add tests if applicable
+
+### 4. Commit with Conventional Format
+
+Commit messages must follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>(<scope>): <subject>
+
+Examples:
+feat(export): Add JSON export format
+fix(api): Resolve null pointer exception
+docs: Update README with setup instructions
+```
+
+**Valid types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+
+### 5. Push and Create PR
 
 ```bash
-# Test activity collection
-jbang scripts/CollectActivity.java <your-username> 3
-
-# Test with specific repository
-jbang scripts/CollectActivity.java <your-username> 7 owner/repo
+git push -u origin feature/issue-42-add-json-export
 ```
 
-### Test Full Workflow
+Then create a PR with:
+- **Title:** Conventional commit format (e.g., `feat: Add JSON export`)
+- **Body:** Must include `Closes #<issue-number>` or `Fixes #<issue-number>`
 
-```bash
-# Install to project-level commands
-mkdir -p .claude/commands
-ln -s $(pwd) .claude/commands/claude-gh-standup
+### 6. Wait for Checks
 
-# Run via Claude Code
-/claude-gh-standup --days 3
-```
+Your PR will be automatically validated:
+- ✅ Branch name format
+- ✅ PR title format
+- ✅ Linked issue
+- ✅ Quality checks (Java syntax, scripts)
 
-## Code Style
+### 7. Merge
 
-### Java Conventions
-- **File naming**: PascalCase (e.g., `CollectActivity.java`)
-- **Method naming**: camelCase (e.g., `getUserCommits()`)
-- **Indentation**: 4 spaces (no tabs)
-- **Line length**: Soft limit of 120 characters
+Once all checks pass:
+- Merge the PR (squash merge recommended)
+- The linked issue will be automatically closed
+- Your branch will be automatically deleted
 
-### JBang Requirements
-All `.java` files must start with:
-```java
-///usr/bin/env jbang "$0" "$@" ; exit $?
-```
+## Branch Protection
 
-Dependencies via comments:
-```java
-//DEPS com.google.code.gson:gson:2.10.1
-```
+The `main` branch is protected:
+- No direct pushes allowed
+- All changes via PR
+- All status checks must pass
+- All conversations must be resolved
 
-## Git Workflow
+## Labels
 
-### Commit Messages
+Use these labels on issues:
 
-Follow Conventional Commits format:
+**Status:**
+- `status:to-triage` - Needs triage
+- `status:ready` - Ready to work on
+- `status:in-progress` - Currently being worked on
+- `status:in-review` - Under code review
+- `status:done` - Completed
 
-```
-type(scope): description
+**Type:**
+- `type:feature` - New feature
+- `type:fix` - Bug fix
+- `type:hotfix` - Critical fix
+- `type:docs` - Documentation
+- `type:refactor` - Code refactoring
+- `type:test` - Test addition/update
 
-feat(activity-collection): add PR collection via gh search prs
-fix(diff-analysis): handle empty diff gracefully
-docs(readme): add team aggregation examples
-```
-
-**Types**: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
-**Scopes**: Match capability names (activity-collection, diff-analysis, etc.)
-
-### Pull Requests
-
-1. Create a feature branch: `git checkout -b feature/your-feature`
-2. Make your changes
-3. Test thoroughly
-4. Commit with conventional commit messages
-5. Push and create PR
-6. Reference any related issues
-
-## Adding New Features
-
-### New Capability
-1. Create spec in `openspec/specs/<capability>/spec.md`
-2. Create corresponding Java script in `scripts/`
-3. Update `Main.java` to orchestrate new capability
-4. Add tests and documentation
-5. Update README.md and command definition
-
-### New Export Format
-1. Add export method in `ExportUtils.java`
-2. Update format validation
-3. Add example output in `examples/`
-4. Document in README.md
-
-## OpenSpec Workflow
-
-This project uses OpenSpec for specification-driven development:
-
-1. **Create Proposal**: `openspec create <change-id>`
-2. **Write Specs**: Define requirements and scenarios
-3. **Validate**: `openspec validate <change-id> --strict`
-4. **Implement**: Follow `tasks.md` checklist
-5. **Archive**: `openspec archive <change-id>` after deployment
+**Priority:**
+- `priority:critical` - Blocking issue
+- `priority:high` - High priority
+- `priority:medium` - Medium priority
+- `priority:low` - Low priority
 
 ## Questions?
 
-- Open an issue for bugs or feature requests
-- Start a discussion for questions or ideas
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the MIT License with attribution to the original gh-standup project.
+Open an issue with the `question` label!
