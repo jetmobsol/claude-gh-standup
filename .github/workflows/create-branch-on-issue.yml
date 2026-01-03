@@ -133,49 +133,40 @@ jobs:
           BRANCH_EXISTS: ${{ needs.create-branch.outputs.branch_exists }}
         run: |
           ISSUE_NUMBER=${{ github.event.issue.number }}
+          REPO_URL="https://github.com/${{ github.repository }}"
+          BRANCH_TYPE="${{ needs.validate.outputs.branch_type }}"
+          ISSUE_TITLE="${{ github.event.issue.title }}"
 
           if [ "$BRANCH_EXISTS" = "true" ]; then
-            read -r -d '' COMMENT <<'COMMENTEOF' || true
-## ⏭️ Branch Already Exists
-
-Branch \`$BRANCH_NAME\` already exists for this issue.
-
-### Checkout locally:
-\`\`\`bash
-git fetch origin
-git checkout $BRANCH_NAME
-\`\`\`
-
-### View on GitHub:
-https://github.com/${{ github.repository }}/tree/$BRANCH_NAME
-COMMENTEOF
+            COMMENT="## ⏭️ Branch Already Exists"
+            COMMENT="${COMMENT}\n\nBranch \`${BRANCH_NAME}\` already exists for this issue."
+            COMMENT="${COMMENT}\n\n### Checkout locally:"
+            COMMENT="${COMMENT}\n\`\`\`bash"
+            COMMENT="${COMMENT}\ngit fetch origin"
+            COMMENT="${COMMENT}\ngit checkout ${BRANCH_NAME}"
+            COMMENT="${COMMENT}\n\`\`\`"
+            COMMENT="${COMMENT}\n\n### View on GitHub:"
+            COMMENT="${COMMENT}\n${REPO_URL}/tree/${BRANCH_NAME}"
           else
-            read -r -d '' COMMENT <<'COMMENTEOF' || true
-## ✅ Branch Created
-
-A new branch has been created for this issue: \`$BRANCH_NAME\`
-
-### Checkout locally:
-\`\`\`bash
-git fetch origin
-git checkout $BRANCH_NAME
-\`\`\`
-
-### Or create a PR:
-Once you've made your changes, create a pull request:
-\`\`\`bash
-gh pr create --title "${{ needs.validate.outputs.branch_type }}: ${{ github.event.issue.title }}" --body "Closes #$ISSUE_NUMBER"
-\`\`\`
-
-### View on GitHub:
-https://github.com/${{ github.repository }}/tree/$BRANCH_NAME
-
----
-🤖 *Automated by GitHub Actions*
-COMMENTEOF
+            COMMENT="## ✅ Branch Created"
+            COMMENT="${COMMENT}\n\nA new branch has been created for this issue: \`${BRANCH_NAME}\`"
+            COMMENT="${COMMENT}\n\n### Checkout locally:"
+            COMMENT="${COMMENT}\n\`\`\`bash"
+            COMMENT="${COMMENT}\ngit fetch origin"
+            COMMENT="${COMMENT}\ngit checkout ${BRANCH_NAME}"
+            COMMENT="${COMMENT}\n\`\`\`"
+            COMMENT="${COMMENT}\n\n### Or create a PR:"
+            COMMENT="${COMMENT}\nOnce you've made your changes, create a pull request:"
+            COMMENT="${COMMENT}\n\`\`\`bash"
+            COMMENT="${COMMENT}\ngh pr create --title \"${BRANCH_TYPE}: ${ISSUE_TITLE}\" --body \"Closes #${ISSUE_NUMBER}\""
+            COMMENT="${COMMENT}\n\`\`\`"
+            COMMENT="${COMMENT}\n\n### View on GitHub:"
+            COMMENT="${COMMENT}\n${REPO_URL}/tree/${BRANCH_NAME}"
+            COMMENT="${COMMENT}\n\n---"
+            COMMENT="${COMMENT}\n🤖 *Automated by GitHub Actions*"
           fi
 
-          gh issue comment $ISSUE_NUMBER --body "$COMMENT"
+          echo -e "$COMMENT" | gh issue comment $ISSUE_NUMBER --body-file -
 
       - name: Update issue to in-progress
         if: needs.create-branch.outputs.branch_exists == 'false'
