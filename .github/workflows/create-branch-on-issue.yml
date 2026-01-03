@@ -135,7 +135,8 @@ jobs:
           ISSUE_NUMBER=${{ github.event.issue.number }}
 
           if [ "$BRANCH_EXISTS" = "true" ]; then
-            COMMENT="## ⏭️ Branch Already Exists
+            COMMENT=$(cat <<EOF
+## ⏭️ Branch Already Exists
 
 Branch \`$BRANCH_NAME\` already exists for this issue.
 
@@ -146,9 +147,12 @@ git checkout $BRANCH_NAME
 \`\`\`
 
 ### Or view on GitHub:
-https://github.com/${{ github.repository }}/tree/$BRANCH_NAME"
+https://github.com/${{ github.repository }}/tree/$BRANCH_NAME
+EOF
+)
           else
-            COMMENT="## ✅ Branch Created
+            COMMENT=$(cat <<EOF
+## ✅ Branch Created
 
 A new branch has been created for this issue: \`$BRANCH_NAME\`
 
@@ -161,14 +165,16 @@ git checkout $BRANCH_NAME
 ### Or create a PR:
 Once you've made your changes, create a pull request:
 \`\`\`bash
-gh pr create --title \"${{ needs.validate.outputs.branch_type }}: ${{ github.event.issue.title }}\" --body \"Closes #$ISSUE_NUMBER\"
+gh pr create --title "${{ needs.validate.outputs.branch_type }}: ${{ github.event.issue.title }}" --body "Closes #$ISSUE_NUMBER"
 \`\`\`
 
 ### View on GitHub:
 https://github.com/${{ github.repository }}/tree/$BRANCH_NAME
 
 ---
-🤖 *Automated by GitHub Actions*"
+🤖 *Automated by GitHub Actions*
+EOF
+)
           fi
 
           gh issue comment $ISSUE_NUMBER --body "$COMMENT"
