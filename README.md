@@ -200,3 +200,4 @@ This project includes attribution to the original [gh-standup](https://github.co
 ---
 
 **Made with Claude Code**
+# GPG Test
