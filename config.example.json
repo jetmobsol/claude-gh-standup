@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "directories": [
+    {
+      "id": "myapp-main",
+      "path": "~/projects/myapp",
+      "branch": "main",
+      "enabled": true,
+      "remoteUrl": "git@github.com:owner/myapp.git",
+      "repoName": "owner/myapp"
+    },
+    {
+      "id": "myapp-feature",
+      "path": "~/projects/myapp-feature",
+      "branch": "feature/new-ui",
+      "enabled": true,
+      "remoteUrl": "git@github.com:owner/myapp.git",
+      "repoName": "owner/myapp"
+    }
+  ],
+  "reportSettings": {
+    "defaultDays": 1,
+    "autoSaveReports": true,
+    "reportDirectory": "~/.claude-gh-standup/reports"
+  }
+}

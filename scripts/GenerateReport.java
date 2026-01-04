@@ -39,7 +39,7 @@ public class GenerateReport {
                 JsonObject commitData = commit.getAsJsonObject("commit");
                 JsonObject repo = commit.getAsJsonObject("repository");
 
-                String repoName = repo.get("fullName").getAsString();
+                String repoName = repo.get("nameWithOwner").getAsString();
                 String message = commitData.get("message").getAsString().split("\n")[0]; // First line only
                 String sha = commit.get("sha").getAsString().substring(0, 7);
 
@@ -57,7 +57,7 @@ public class GenerateReport {
                 JsonObject pr = prElement.getAsJsonObject();
                 JsonObject repo = pr.getAsJsonObject("repository");
 
-                String repoName = repo.get("fullName").getAsString();
+                String repoName = repo.get("nameWithOwner").getAsString();
                 int number = pr.get("number").getAsInt();
                 String title = pr.get("title").getAsString();
                 String state = pr.get("state").getAsString();
@@ -76,7 +76,7 @@ public class GenerateReport {
                 JsonObject issue = issueElement.getAsJsonObject();
                 JsonObject repo = issue.getAsJsonObject("repository");
 
-                String repoName = repo.get("fullName").getAsString();
+                String repoName = repo.get("nameWithOwner").getAsString();
                 int number = issue.get("number").getAsInt();
                 String title = issue.get("title").getAsString();
                 String state = issue.get("state").getAsString();
