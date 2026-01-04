@@ -21,9 +21,9 @@ Your task is to create a concise, well-structured standup report that synthesize
 - Be concise but informative
 - Use bullet points for clarity
 
-## GitHub Activity (Deduplicated)
+## GitHub Activity (All Repositories)
 
-The following shows activity from GitHub across all tracked repositories. This includes commits, pull requests, issues, and code reviews from **all branches**, not just the configured directories:
+The following shows activity from GitHub across **ALL YOUR REPOSITORIES** (not limited to configured directories). This includes commits, pull requests, issues, and code reviews from any repository you worked on:
 
 {{githubActivity}}
 
@@ -38,7 +38,9 @@ The following shows work-in-progress in each configured directory/branch:
 - User: {{user}}
 - Date Range: Last {{days}} day(s)
 - Directories Tracked: {{directoryCount}}
-- Repositories: {{repoCount}}
+- Configured Repositories: {{repoCount}}
+
+**Note**: GitHub activity includes ALL repositories you worked on, not just those configured above. Local WIP tracking is limited to configured directories.
 
 ---
 

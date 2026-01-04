@@ -19,7 +19,11 @@ import java.nio.file.Paths;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Main - Entry point for claude-gh-standup slash command
@@ -258,6 +262,97 @@ public class Main {
 
         if (sb.length() == 0) {
             return "No GitHub activity found for this period.";
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * Groups GitHub activities by repository name for multi-directory mode display.
+     * Activities are extracted from the single githubActivity object and grouped by repo.
+     */
+    public static String formatActivitiesGroupedByRepo(JsonObject activity, int days) {
+        // Use TreeMap to sort repositories alphabetically
+        Map<String, List<String>> repoActivities = new TreeMap<>();
+
+        // Process commits
+        JsonArray commits = activity.getAsJsonArray("commits");
+        if (commits != null) {
+            for (JsonElement commitElement : commits) {
+                JsonObject commit = commitElement.getAsJsonObject();
+                JsonObject commitData = commit.getAsJsonObject("commit");
+                JsonObject repo = commit.getAsJsonObject("repository");
+
+                if (repo == null || repo.get("nameWithOwner") == null) {
+                    System.err.println("⚠️ Skipping commit without repository info");
+                    continue;
+                }
+
+                String repoName = repo.get("nameWithOwner").getAsString();
+                String message = commitData.get("message").getAsString().split("\n")[0];
+                String sha = commit.get("sha").getAsString().substring(0, 7);
+
+                repoActivities.computeIfAbsent(repoName, k -> new ArrayList<>())
+                    .add("- Commit: " + message + " (" + sha + ")");
+            }
+        }
+
+        // Process pull requests
+        JsonArray prs = activity.getAsJsonArray("pull_requests");
+        if (prs != null) {
+            for (JsonElement prElement : prs) {
+                JsonObject pr = prElement.getAsJsonObject();
+                JsonObject repo = pr.getAsJsonObject("repository");
+
+                if (repo == null || repo.get("nameWithOwner") == null) {
+                    System.err.println("⚠️ Skipping PR without repository info");
+                    continue;
+                }
+
+                String repoName = repo.get("nameWithOwner").getAsString();
+                int number = pr.get("number").getAsInt();
+                String title = pr.get("title").getAsString();
+                String state = pr.get("state").getAsString();
+
+                repoActivities.computeIfAbsent(repoName, k -> new ArrayList<>())
+                    .add("- PR #" + number + ": " + title + " (" + state + ")");
+            }
+        }
+
+        // Process issues
+        JsonArray issues = activity.getAsJsonArray("issues");
+        if (issues != null) {
+            for (JsonElement issueElement : issues) {
+                JsonObject issue = issueElement.getAsJsonObject();
+                JsonObject repo = issue.getAsJsonObject("repository");
+
+                if (repo == null || repo.get("nameWithOwner") == null) {
+                    System.err.println("⚠️ Skipping issue without repository info");
+                    continue;
+                }
+
+                String repoName = repo.get("nameWithOwner").getAsString();
+                int number = issue.get("number").getAsInt();
+                String title = issue.get("title").getAsString();
+                String state = issue.get("state").getAsString();
+
+                repoActivities.computeIfAbsent(repoName, k -> new ArrayList<>())
+                    .add("- Issue #" + number + ": " + title + " (" + state + ")");
+            }
+        }
+
+        // Build output string grouped by repository
+        if (repoActivities.isEmpty()) {
+            return "No GitHub activity in the last " + days + " day(s).";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, List<String>> entry : repoActivities.entrySet()) {
+            sb.append("### ").append(entry.getKey()).append("\n\n");
+            for (String activity_item : entry.getValue()) {
+                sb.append(activity_item).append("\n");
+            }
+            sb.append("\n");
         }
 
         return sb.toString();
@@ -506,15 +601,10 @@ public class Main {
         JsonObject githubActivity = aggregated.getAsJsonObject("githubActivity");
         JsonArray localChanges = aggregated.getAsJsonArray("localChanges");
         JsonObject metadata = aggregated.getAsJsonObject("metadata");
+        int days = metadata.get("days").getAsInt();
 
-        // Format GitHub activity
-        StringBuilder githubStr = new StringBuilder();
-        for (String repo : githubActivity.keySet()) {
-            githubStr.append("## Repository: ").append(repo).append("\n\n");
-            JsonObject activity = githubActivity.getAsJsonObject(repo);
-            githubStr.append(formatActivities(activity));
-            githubStr.append("\n");
-        }
+        // Format GitHub activity (now a single object with commits/PRs/issues arrays, grouped by repo)
+        String githubStr = formatActivitiesGroupedByRepo(githubActivity, days);
 
         // Format local changes
         StringBuilder localStr = new StringBuilder();
@@ -577,7 +667,7 @@ public class Main {
 
         // Replace placeholders
         String formatted = template
-            .replace("{{githubActivity}}", githubStr.toString())
+            .replace("{{githubActivity}}", githubStr)
             .replace("{{localChanges}}", localStr.toString())
             .replace("{{user}}", metadata.get("user").getAsString())
             .replace("{{days}}", metadata.get("days").getAsString())

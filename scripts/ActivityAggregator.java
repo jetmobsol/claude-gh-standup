@@ -28,7 +28,7 @@ public class ActivityAggregator {
     }
 
     static class AggregatedActivity {
-        JsonObject githubActivity = new JsonObject();
+        JsonObject githubActivity = new JsonObject();  // Single object with commits, PRs, issues arrays (ALL repos)
         JsonArray localChanges = new JsonArray();
         JsonObject metadata = new JsonObject();
     }
@@ -95,7 +95,7 @@ public class ActivityAggregator {
     private static AggregatedActivity aggregateActivities(List<Directory> directories, String user, int days) throws Exception {
         AggregatedActivity aggregated = new AggregatedActivity();
 
-        // Group directories by repoName for GitHub activity deduplication
+        // Group directories by repoName for metadata (shows which repos have local tracking)
         Map<String, List<Directory>> repoMap = directories.stream()
             .collect(Collectors.groupingBy(d -> d.repoName));
 
@@ -105,8 +105,8 @@ public class ActivityAggregator {
         JsonArray localChanges = collectLocalChangesParallel(directories);
         aggregated.localChanges = localChanges;
 
-        // Collect GitHub activity (deduplicated by repository)
-        JsonObject githubActivity = collectGitHubActivity(repoMap, user, days);
+        // Collect GitHub activity from ALL user repositories (not filtered by config)
+        JsonObject githubActivity = collectGitHubActivityAllRepos(user, days);
         aggregated.githubActivity = githubActivity;
 
         // Add metadata
@@ -114,6 +114,13 @@ public class ActivityAggregator {
         aggregated.metadata.addProperty("days", days);
         aggregated.metadata.addProperty("directoryCount", directories.size());
         aggregated.metadata.addProperty("repoCount", repoMap.size());
+
+        // Add configured repos to metadata (shows which repos have local tracking)
+        JsonArray configuredRepos = new JsonArray();
+        for (String repoName : repoMap.keySet()) {
+            configuredRepos.add(repoName);
+        }
+        aggregated.metadata.add("configuredRepos", configuredRepos);
 
         return aggregated;
     }
@@ -185,34 +192,42 @@ public class ActivityAggregator {
         return gson.fromJson(output.toString(), JsonObject.class);
     }
 
-    private static JsonObject collectGitHubActivity(Map<String, List<Directory>> repoMap, String user, int days) throws Exception {
-        JsonObject githubActivity = new JsonObject();
+    /**
+     * Collects GitHub activity from ALL user repositories (not filtered by configured repos).
+     * This ensures multi-directory mode shows the same activity as legacy mode.
+     */
+    private static JsonObject collectGitHubActivityAllRepos(String user, int days) {
+        System.err.println("Collecting GitHub activity from ALL repositories...");
 
-        System.err.println("Collecting GitHub activity (deduplicated by repository)...");
-
-        for (String repoName : repoMap.keySet()) {
-            System.err.println("  Fetching activity for " + repoName + "...");
-
-            try {
-                JsonObject activity = callCollectActivity(user, days, repoName);
-                githubActivity.add(repoName, activity);
-            } catch (Exception e) {
-                System.err.println("⚠️  Failed to collect GitHub activity for " + repoName + ": " + e.getMessage());
-                // Continue with other repos
-            }
+        try {
+            // Call CollectActivity with null repo to get ALL user activity
+            JsonObject activity = callCollectActivity(user, days, null);
+            return activity;
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to collect GitHub activity: " + e.getMessage());
+            // Return empty activity structure on error (graceful degradation)
+            JsonObject empty = new JsonObject();
+            empty.add("commits", new JsonArray());
+            empty.add("pull_requests", new JsonArray());
+            empty.add("issues", new JsonArray());
+            return empty;
         }
-
-        return githubActivity;
     }
 
     private static JsonObject callCollectActivity(String user, int days, String repo) throws Exception {
         String installDir = System.getProperty("user.home") + "/.claude-gh-standup";
         String scriptPath = installDir + "/scripts/CollectActivity.java";
 
-        ProcessBuilder pb = new ProcessBuilder(
-            "jbang", scriptPath,
-            user, String.valueOf(days), repo
-        );
+        List<String> command = new ArrayList<>();
+        command.add("jbang");
+        command.add(scriptPath);
+        command.add(user);
+        command.add(String.valueOf(days));
+        if (repo != null) {
+            command.add(repo);  // Only add repo arg if specified (null means ALL repos)
+        }
+
+        ProcessBuilder pb = new ProcessBuilder(command);
 
         Process process = pb.start();
         StringBuilder output = new StringBuilder();

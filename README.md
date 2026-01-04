@@ -9,7 +9,7 @@ Generate professional standup reports from your GitHub activity using Claude AI.
 - **Multi-Directory Support** - Track multiple branches/repos simultaneously with local WIP detection
 - **Local Change Detection** - Shows uncommitted and unpushed work alongside GitHub activity
 - **Smart Date Shortcuts** - `--yesterday` (Friday-aware on Monday), `--last-week`
-- **GitHub Activity Deduplication** - Fetches activity once per unique repository
+- **Complete GitHub Activity** - Shows ALL repositories you worked on (multi-directory mode adds local WIP, not filters activity)
 - **Report Auto-Save** - Saves to `~/.claude-gh-standup/reports/` by default
 - **Repository-Aware** - Automatically detects current repository or uses configured directories
 - **Zero API Key Management** - Uses `gh` CLI and `claude -p` (no GitHub or Anthropic API keys needed)
@@ -54,17 +54,18 @@ The installer will:
 
 ### Manual Install
 
-**User-level** (available in all projects):
 ```bash
-git clone https://github.com/jetmobsol/claude-gh-standup.git ~/.claude/commands/claude-gh-standup/
-```
+# 1. Clone to a dedicated directory (NOT inside .claude/commands/)
+git clone https://github.com/jetmobsol/claude-gh-standup.git ~/.claude-gh-standup
 
-**Project-level** (available only in current project):
-```bash
-git clone https://github.com/jetmobsol/claude-gh-standup.git .claude/commands/claude-gh-standup/
+# 2. Symlink ONLY the command file to Claude Code
+mkdir -p ~/.claude/commands
+ln -sf ~/.claude-gh-standup/.claude/commands/claude-gh-standup.md ~/.claude/commands/claude-gh-standup.md
 ```
 
 After installation, restart Claude Code or reload commands.
+
+> **Why this approach?** Cloning the entire repo into `~/.claude/commands/` causes all markdown files (docs, specs, etc.) to appear as commands. Symlinking just the command file keeps it clean.
 
 ## Usage
 
@@ -108,9 +109,9 @@ cd ~/projects/myapp-feature
 ```
 
 **Multi-directory reports include:**
-- GitHub activity deduplicated across repositories
-- Local uncommitted changes per directory
-- Unpushed commits per directory
+- GitHub activity from ALL repositories you worked on (not just configured ones)
+- Local uncommitted changes per configured directory
+- Unpushed commits per configured directory
 - Context switching analysis
 
 **Configuration management:**
@@ -151,10 +152,14 @@ cd ~/projects/myapp-feature
 ### Multi-Directory Mode
 1. **Load Configuration** - Reads `~/.claude-gh-standup/config.json`
 2. **Parallel Local Detection** - Detects uncommitted/unpushed changes (4 threads)
-3. **Deduplicated GitHub Activity** - Fetches activity once per unique repository
-4. **Activity Aggregation** - Combines local and GitHub data into unified JSON
+3. **ALL-Repository GitHub Activity** - Fetches activity from ALL user repositories (single API call)
+4. **Activity Aggregation** - Combines local WIP (configured dirs) + GitHub (all repos) into unified JSON
 5. **Generate Report** - Uses multi-directory prompt template with `claude -p`
 6. **Auto-Save** - Saves report to `~/.claude-gh-standup/reports/YYYY-MM-DD-*.md`
+
+**Two-Tier Approach:**
+- **GitHub Activity**: Shows ALL repositories you worked on (same as legacy mode)
+- **Local WIP**: Shows only configured directories' uncommitted/unpushed work
 
 ## Architecture
 
@@ -199,11 +204,11 @@ for (Directory dir : directories) {
 }
 ```
 
-*GitHub Activity Deduplication:*
+*ALL-Repository GitHub Activity:*
 ```java
-Map<String, List<Directory>> repoMap = directories.stream()
-    .collect(Collectors.groupingBy(d -> d.repoName));
-// Fetch activity once per unique repository
+// Fetch ALL user activity (same as legacy mode - no filtering by config)
+JsonObject activity = collectGitHubActivityAllRepos(user, days);
+// Single API call, grouped by repository in output
 ```
 
 ## Attribution
@@ -218,131 +223,19 @@ This project is inspired by and adapted from **[gh-standup](https://github.com/s
 
 ## Development
 
-### Development Mode Setup (Best of Both Worlds)
+### Testing Scripts
 
-When developing features, the standard installation copies files to `~/.claude-gh-standup/`, which means every code change requires reinstalling. For fast iteration, use **symlink mode** to make your development code immediately available to the slash command.
-
-#### Quick Setup: Development Mode
-
-**1. Clone repository for development:**
-```bash
-git clone https://github.com/jetmobsol/claude-gh-standup.git ~/projects/claude-gh-standup
-cd ~/projects/claude-gh-standup
-git checkout -b feature/my-feature
-```
-
-**2. Create symlink installation (instead of copying files):**
-```bash
-# Remove existing installation if present
-rm -rf ~/.claude-gh-standup
-
-# Create symlink to your dev directory
-ln -s ~/projects/claude-gh-standup ~/.claude-gh-standup
-
-# Create slash command symlink for Claude Code
-mkdir -p ~/.claude/commands
-rm -rf ~/.claude/commands/claude-gh-standup
-ln -s ~/.claude-gh-standup ~/.claude/commands/claude-gh-standup
-```
-
-**3. Test your changes instantly:**
-```bash
-# Edit code in your dev directory
-vim ~/projects/claude-gh-standup/scripts/Main.java
-
-# Test immediately - no reinstall needed!
-/claude-gh-standup --yesterday
-
-# Or test directly with JBang for even faster iteration
-jbang scripts/Main.java --yesterday --debug
-```
-
-#### Development Workflow Comparison
-
-| Method | Speed | Use Case | Invocation |
-|--------|-------|----------|------------|
-| **JBang Direct** | ⚡ Fastest | Quick script testing | `jbang scripts/Main.java --args` |
-| **Symlink Mode** | ⚡ Fast | Full slash command testing | `/claude-gh-standup --args` |
-| **Install Script** | 🐌 Slow | Production installation | Requires `./install.sh` on every change |
-
-#### Switching Between Dev and Production
-
-**Switch to production (stable main branch):**
-```bash
-# Remove symlinks
-rm ~/.claude-gh-standup
-rm ~/.claude/commands/claude-gh-standup
-
-# Run normal installation (copies files from main branch)
-curl -fsSL https://raw.githubusercontent.com/jetmobsol/claude-gh-standup/main/install.sh | bash
-```
-
-**Switch back to development:**
-```bash
-# Remove copied files
-rm -rf ~/.claude-gh-standup
-
-# Recreate symlinks
-ln -s ~/projects/claude-gh-standup ~/.claude-gh-standup
-ln -s ~/.claude-gh-standup ~/.claude/commands/claude-gh-standup
-```
-
-#### Verifying Development Mode
-
-**Check symlinks are correct:**
-```bash
-# Should point to your dev directory
-ls -la ~/.claude-gh-standup
-# Example output: ~/.claude-gh-standup -> /Users/you/projects/claude-gh-standup
-
-ls -la ~/.claude/commands/claude-gh-standup
-# Example output: ~/.claude/commands/claude-gh-standup -> /Users/you/.claude-gh-standup
-```
-
-**Verify slash command uses dev code:**
-```bash
-# Add a debug statement to Main.java
-echo 'System.err.println("🚧 DEV MODE ACTIVE");' >> scripts/Main.java
-
-# Run slash command - should see your debug message
-/claude-gh-standup --help
-
-# Clean up
-git checkout scripts/Main.java
-```
-
-#### Development Best Practices
-
-1. **Fast Iteration**: Use `jbang scripts/Main.java` for quick testing
-2. **Integration Testing**: Use `/claude-gh-standup` to test the full slash command
-3. **Branching**: Always develop on feature branches, never on main
-4. **Symlinks**: Keep symlinks during development, reinstall for production use
-5. **Config Isolation**: Test multi-directory with separate config.json in dev directory
-
-#### Testing Individual Scripts
-
-Each Java script can be tested independently with JBang:
+Test individual scripts directly with JBang:
 
 ```bash
-# Test configuration management
-jbang scripts/ConfigManager.java init
-jbang scripts/ConfigManager.java add ~/projects/myapp myapp-main
-jbang scripts/ConfigManager.java list
-
-# Test local change detection
-jbang scripts/LocalChangesDetector.java myapp-id ~/projects/myapp main
-
-# Test activity aggregation (requires config JSON)
-jbang scripts/ActivityAggregator.java '{"directories":[...]}' username 3
-
 # Test GitHub activity collection
 jbang scripts/CollectActivity.java octocat 3
 
-# Test diff analysis
-jbang scripts/AnalyzeDiffs.java '{"pull_requests":[]}'
+# Test configuration management
+jbang scripts/ConfigManager.java list
 
-# Test report generation
-jbang scripts/GenerateReport.java '<activity-json>' '<diff-summary>'
+# Test full workflow
+jbang scripts/Main.java --yesterday
 ```
 
 ### Project Structure
@@ -410,28 +303,10 @@ Multi-directory mode uses `~/.claude-gh-standup/config.json`:
 
 ## Troubleshooting
 
-### Development Mode Issues
-
-**"Changes not reflected in slash command"**
-- Verify symlinks exist: `ls -la ~/.claude-gh-standup`
-- Ensure symlink points to correct dev directory
-- If using copied installation, you need to reinstall after each change
-- Switch to symlink mode (see Development section)
-
-**"Using old version of code"**
-- Check if `~/.claude-gh-standup` is a symlink or copied directory:
-  - Symlink: `ls -la ~/.claude-gh-standup` shows `->` pointing to dev directory
-  - Copied: Shows as regular directory - requires reinstallation for updates
-- Recreate symlinks if needed (see Development > Switching Between Dev and Production)
-
-**"Testing on wrong branch"**
-- Symlink mode uses whatever branch you're on in dev directory
-- Check current branch: `cd ~/.claude-gh-standup && git branch`
-- Switch branch in dev directory: `cd ~/projects/claude-gh-standup && git checkout main`
-
 ### "Command not found"
-- Ensure repository is in `~/.claude/commands/claude-gh-standup/` or `.claude/commands/claude-gh-standup/`
-- Run `/help` in Claude Code to verify command appears in list
+- Verify symlink exists: `ls -la ~/.claude/commands/claude-gh-standup.md`
+- Check it points to: `~/.claude-gh-standup/.claude/commands/claude-gh-standup.md`
+- Run `/help` in Claude Code to verify command appears
 - Restart Claude Code to reload commands
 
 ### Multi-Directory Mode Issues

@@ -16,7 +16,7 @@ Analyzes GitHub commits, pull requests, issues, and code reviews to generate AI-
 - **Smart date shortcuts**: `--yesterday` (Friday-aware on Monday), `--last-week`
 - **Local change detection**: Shows uncommitted and unpushed work alongside GitHub activity
 - **Repository-aware**: Automatically detects current repository or uses configured directories
-- **GitHub activity deduplication**: Fetches activity once per unique repository
+- **Complete GitHub activity**: Shows ALL repositories you worked on (multi-directory mode adds local WIP, not filters activity)
 - **Report auto-save**: Saves to `~/.claude-gh-standup/reports/` by default
 - Collects GitHub activity using `gh` CLI (no API keys needed)
 - Generates natural language standup reports via `claude -p`
@@ -93,6 +93,14 @@ Before using this command, ensure you have:
 
 Track multiple branches/repositories simultaneously with local work-in-progress detection.
 
+### How It Works
+
+Multi-directory mode provides a two-tier approach:
+- **GitHub Activity**: Shows ALL repositories you worked on (same as legacy mode)
+- **Local WIP**: Shows only configured directories' uncommitted/unpushed work
+
+This ensures you never miss activity from repositories you worked on, while adding local change visibility for tracked directories.
+
 ### Initial Setup
 
 ```bash
@@ -127,7 +135,7 @@ cd ~/projects/myapp-feature
 ### Multi-Directory Reports
 
 Once directories are configured, reports automatically include:
-- **GitHub activity**: Deduplicated across all unique repositories
+- **GitHub activity**: ALL repositories you worked on (not just configured ones)
 - **Local changes**: Per-directory uncommitted and unpushed work
 - **Context switching**: Highlights work across multiple branches/areas
 

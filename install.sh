@@ -4,7 +4,7 @@
 set -e
 
 INSTALL_DIR="$HOME/.claude-gh-standup"
-COMMAND_LINK="$HOME/.claude/commands/claude-gh-standup"
+COMMAND_LINK="$HOME/.claude/commands/claude-gh-standup.md"
 
 echo "Installing claude-gh-standup..."
 echo ""
@@ -68,8 +68,8 @@ mkdir -p "$HOME/.claude/commands"
 if [ -L "$COMMAND_LINK" ] || [ -e "$COMMAND_LINK" ]; then
     rm -rf "$COMMAND_LINK"
 fi
-ln -s "$INSTALL_DIR" "$COMMAND_LINK"
-echo "✓ Symlink created: $COMMAND_LINK → $INSTALL_DIR"
+ln -s "$INSTALL_DIR/.claude/commands/claude-gh-standup.md" "$COMMAND_LINK"
+echo "✓ Symlink created: $COMMAND_LINK → command file"
 
 # 5. Make scripts executable
 chmod +x "$INSTALL_DIR/scripts"/*.java 2>/dev/null || true

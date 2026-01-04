@@ -18,9 +18,9 @@ This is a Claude Code slash command that generates AI-powered standup reports fr
 - Multiple export formats (Markdown, JSON, HTML)
 - Zero API key management (uses `gh` and `claude` CLI tools)
 
-**Installation Locations**:
-- User-level: `~/.claude/commands/claude-gh-standup/`
-- Project-level: `.claude/commands/claude-gh-standup/`
+**Installation**:
+- Project files: `~/.claude-gh-standup/`
+- Command symlink: `~/.claude/commands/claude-gh-standup.md` → points to project's `.claude/commands/claude-gh-standup.md`
 
 ## Project Structure
 
@@ -89,13 +89,13 @@ claude-gh-standup/
 
 **1. Clone and Install**:
 ```bash
-# User-level installation
-git clone https://github.com/jetmobsol/claude-gh-standup.git ~/.claude/commands/claude-gh-standup/
-cd ~/.claude/commands/claude-gh-standup/
+# Clone to dedicated directory
+git clone https://github.com/jetmobsol/claude-gh-standup.git ~/.claude-gh-standup
+cd ~/.claude-gh-standup
 
-# OR project-level installation
-git clone https://github.com/jetmobsol/claude-gh-standup.git .claude/commands/claude-gh-standup/
-cd .claude/commands/claude-gh-standup/
+# Symlink the command file to Claude Code
+mkdir -p ~/.claude/commands
+ln -sf ~/.claude-gh-standup/.claude/commands/claude-gh-standup.md ~/.claude/commands/claude-gh-standup.md
 ```
 
 **2. Test Individual Scripts**:
@@ -587,7 +587,8 @@ gh pr create --title "feat: Description" --body "Closes #42"
 ## Troubleshooting
 
 ### "Command not found" in Claude Code
-- Verify installation path: `~/.claude/commands/claude-gh-standup/` or `.claude/commands/claude-gh-standup/`
+- Verify symlink: `ls -la ~/.claude/commands/claude-gh-standup.md`
+- Should point to: `~/.claude-gh-standup/.claude/commands/claude-gh-standup.md`
 - Run `/help` in Claude Code to check if command appears
 - Restart Claude Code to reload commands
 
