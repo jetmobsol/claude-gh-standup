@@ -2,11 +2,16 @@
 
 > AI-powered GitHub standup reports for Claude Code
 
-Generate professional standup reports from your GitHub activity using Claude AI. Analyzes commits, pull requests, issues, and code reviews with file diff context to produce meaningful summaries.
+Generate professional standup reports from your GitHub activity using Claude AI. Supports both single-repository mode and multi-directory tracking across multiple branches/repos with local work-in-progress detection.
 
 ## Features
 
-- **Repository-Aware** - Automatically detects and analyzes activity in the current git repository
+- **Multi-Directory Support** - Track multiple branches/repos simultaneously with local WIP detection
+- **Local Change Detection** - Shows uncommitted and unpushed work alongside GitHub activity
+- **Smart Date Shortcuts** - `--yesterday` (Friday-aware on Monday), `--last-week`
+- **GitHub Activity Deduplication** - Fetches activity once per unique repository
+- **Report Auto-Save** - Saves to `~/.claude-gh-standup/reports/` by default
+- **Repository-Aware** - Automatically detects current repository or uses configured directories
 - **Zero API Key Management** - Uses `gh` CLI and `claude -p` (no GitHub or Anthropic API keys needed)
 - **Rich Context** - Analyzes file diffs beyond commit messages for better AI understanding
 - **Team Aggregation** - Generate consolidated reports for multiple team members
@@ -34,7 +39,20 @@ Generate professional standup reports from your GitHub activity using Claude AI.
 
 3. **Claude Code** - Ensure `claude` CLI is available
 
-### Install Command
+### Quick Install (Recommended)
+
+Run the automated installer:
+```bash
+curl -fsSL https://raw.githubusercontent.com/jetmobsol/claude-gh-standup/main/install.sh | bash
+```
+
+The installer will:
+- Install to `~/.claude-gh-standup/`
+- Create symlink for Claude Code slash command
+- Optionally set up shell aliases (`standup-yesterday`, `standup-week`, `standup`)
+- Optionally initialize configuration file
+
+### Manual Install
 
 **User-level** (available in all projects):
 ```bash
@@ -50,23 +68,57 @@ After installation, restart Claude Code or reload commands.
 
 ## Usage
 
-### Basic Examples
+### Quick Start (Legacy Mode)
 
 ```bash
 # Yesterday's activity in current repository
 /claude-gh-standup
 
-# Last 7 days in current repository
-/claude-gh-standup --days 7
+# Use smart date shortcuts
+/claude-gh-standup --yesterday        # Friday if Monday, otherwise yesterday
+/claude-gh-standup --last-week        # Last 7 days
 
-# Specific user in current repository
+# Specific user or repository
 /claude-gh-standup --user octocat --days 3
-
-# Override repository (analyze different repo)
 /claude-gh-standup --repo owner/repo-name --days 7
 ```
 
 **Note**: By default, the command analyzes activity in the **current git repository**. If you're not in a git repository or want to analyze a different one, use `--repo owner/repo`.
+
+### Multi-Directory Mode
+
+Track multiple branches/repositories with local work-in-progress detection:
+
+```bash
+# 1. Initialize configuration
+/claude-gh-standup --config-init
+
+# 2. Add directories to track
+cd ~/projects/myapp
+/claude-gh-standup --config-add .
+
+cd ~/projects/myapp-feature
+/claude-gh-standup --config-add . --id feature-branch
+
+# 3. List configured directories
+/claude-gh-standup --config-list
+
+# 4. Generate multi-directory report
+/claude-gh-standup --yesterday
+```
+
+**Multi-directory reports include:**
+- GitHub activity deduplicated across repositories
+- Local uncommitted changes per directory
+- Unpushed commits per directory
+- Context switching analysis
+
+**Configuration management:**
+```bash
+/claude-gh-standup --config-add PATH [--id ID]   # Add directory
+/claude-gh-standup --config-list                 # List directories
+/claude-gh-standup --config-remove ID            # Remove directory
+```
 
 ### Team Reports
 
@@ -90,10 +142,19 @@ After installation, restart Claude Code or reload commands.
 
 ## How It Works
 
+### Legacy Mode (Single Repository)
 1. **Collect Activity** - Uses `gh` CLI to search commits, PRs, issues, reviews
 2. **Analyze Diffs** - Parses `gh pr diff` output for file change statistics
 3. **Generate Report** - Injects data into prompt template and calls `claude -p`
 4. **Format Output** - Exports to chosen format (Markdown/JSON/HTML)
+
+### Multi-Directory Mode
+1. **Load Configuration** - Reads `~/.claude-gh-standup/config.json`
+2. **Parallel Local Detection** - Detects uncommitted/unpushed changes (4 threads)
+3. **Deduplicated GitHub Activity** - Fetches activity once per unique repository
+4. **Activity Aggregation** - Combines local and GitHub data into unified JSON
+5. **Generate Report** - Uses multi-directory prompt template with `claude -p`
+6. **Auto-Save** - Saves report to `~/.claude-gh-standup/reports/YYYY-MM-DD-*.md`
 
 ## Architecture
 
@@ -101,23 +162,48 @@ Built with **Java + JBang** for single-file executable scripts:
 
 ```
 scripts/
-├── Main.java              # Entry point, argument parsing, workflow orchestration
-├── CollectActivity.java   # GitHub activity collection via gh CLI
-├── AnalyzeDiffs.java      # File diff analysis
-├── GenerateReport.java    # Claude AI integration
-├── ExportUtils.java       # Format conversion (MD/JSON/HTML)
-└── TeamAggregator.java    # Multi-user report consolidation
+├── Main.java                  # Entry point, mode detection, workflow orchestration
+├── ConfigManager.java         # Configuration CRUD (add/remove/list directories)
+├── LocalChangesDetector.java  # Git change detection (uncommitted/unpushed)
+├── ActivityAggregator.java    # Multi-directory orchestration & deduplication
+├── CollectActivity.java       # GitHub activity collection via gh CLI
+├── AnalyzeDiffs.java          # File diff analysis
+├── GenerateReport.java        # Claude AI integration
+├── ExportUtils.java           # Format conversion (MD/JSON/HTML)
+└── TeamAggregator.java        # Multi-user report consolidation
 
 prompts/
-├── standup.prompt.md      # Individual standup prompt template
-└── team.prompt.md         # Team aggregation prompt template
+├── standup.prompt.md          # Individual standup prompt template
+├── multidir-standup.prompt.md # Multi-directory prompt template
+└── team.prompt.md             # Team aggregation prompt template
+
+config/
+├── config.json                # User configuration (empty by default)
+└── config.example.json        # Example with 2 directories
 ```
 
-**Key Pattern**:
+**Key Patterns**:
+
+*Claude AI Integration:*
 ```java
 ProcessBuilder pb = new ProcessBuilder("claude", "-p", fullPrompt);
 pb.inheritIO();  // Seamlessly pipes claude output to stdout
 Process process = pb.start();
+```
+
+*Parallel Local Change Detection:*
+```java
+ExecutorService executor = Executors.newFixedThreadPool(4);
+for (Directory dir : directories) {
+    futures.add(executor.submit(() -> detectChanges(dir)));
+}
+```
+
+*GitHub Activity Deduplication:*
+```java
+Map<String, List<Directory>> repoMap = directories.stream()
+    .collect(Collectors.groupingBy(d -> d.repoName));
+// Fetch activity once per unique repository
 ```
 
 ## Attribution
@@ -137,10 +223,21 @@ This project is inspired by and adapted from **[gh-standup](https://github.com/s
 Each Java script can be tested independently with JBang:
 
 ```bash
-# Test activity collection
+# Test configuration management
+jbang scripts/ConfigManager.java init
+jbang scripts/ConfigManager.java add ~/projects/myapp myapp-main
+jbang scripts/ConfigManager.java list
+
+# Test local change detection
+jbang scripts/LocalChangesDetector.java myapp-id ~/projects/myapp main
+
+# Test activity aggregation (requires config JSON)
+jbang scripts/ActivityAggregator.java '{"directories":[...]}' username 3
+
+# Test GitHub activity collection
 jbang scripts/CollectActivity.java octocat 3
 
-# Test diff analysis (pass activity JSON as argument)
+# Test diff analysis
 jbang scripts/AnalyzeDiffs.java '{"pull_requests":[]}'
 
 # Test report generation
@@ -151,16 +248,64 @@ jbang scripts/GenerateReport.java '<activity-json>' '<diff-summary>'
 
 ```
 claude-gh-standup/
-├── claude-gh-standup.md   # Slash command definition (REQUIRED)
-├── README.md              # This file
-├── LICENSE                # MIT License with attribution
-├── CONTRIBUTING.md        # Contribution guidelines
-├── CLAUDE.md              # Claude Code project guidance
-├── scripts/               # JBang Java scripts
-├── prompts/               # Prompt templates
-├── examples/              # Sample output files
-└── openspec/              # OpenSpec specifications
+├── .claude/
+│   ├── commands/
+│   │   └── claude-gh-standup.md  # Slash command definition (REQUIRED)
+│   └── settings.json             # Claude Code permissions
+├── install.sh                    # Installation script
+├── config.json                   # Empty config (shipped in repo)
+├── config.example.json           # Example with 2 directories
+├── README.md                     # This file
+├── LICENSE                       # MIT License with attribution
+├── CONTRIBUTING.md               # Contribution guidelines
+├── CLAUDE.md                     # Claude Code project guidance
+├── scripts/                      # JBang Java scripts
+│   ├── Main.java
+│   ├── ConfigManager.java
+│   ├── LocalChangesDetector.java
+│   ├── ActivityAggregator.java
+│   ├── CollectActivity.java
+│   ├── AnalyzeDiffs.java
+│   ├── GenerateReport.java
+│   ├── ExportUtils.java
+│   └── TeamAggregator.java
+├── prompts/                      # Prompt templates
+│   ├── standup.prompt.md
+│   ├── multidir-standup.prompt.md
+│   └── team.prompt.md
+├── examples/                     # Sample output files
+└── openspec/                     # OpenSpec specifications
 ```
+
+### Configuration File Format
+
+Multi-directory mode uses `~/.claude-gh-standup/config.json`:
+
+```json
+{
+  "version": "1.0",
+  "directories": [
+    {
+      "id": "myapp-main",
+      "path": "~/projects/myapp",
+      "branch": "main",
+      "enabled": true,
+      "remoteUrl": "git@github.com:owner/myapp.git",
+      "repoName": "owner/myapp"
+    }
+  ],
+  "reportSettings": {
+    "defaultDays": 1,
+    "autoSaveReports": true,
+    "reportDirectory": "~/.claude-gh-standup/reports"
+  }
+}
+```
+
+**Notes:**
+- Empty `directories` array = legacy mode (current directory only)
+- Git info (branch, remoteUrl, repoName) auto-detected via `--config-add`
+- Reports auto-saved to `reportDirectory` with filename `YYYY-MM-DD-repo.md`
 
 ## Troubleshooting
 
@@ -168,6 +313,28 @@ claude-gh-standup/
 - Ensure repository is in `~/.claude/commands/claude-gh-standup/` or `.claude/commands/claude-gh-standup/`
 - Run `/help` in Claude Code to verify command appears in list
 - Restart Claude Code to reload commands
+
+### Multi-Directory Mode Issues
+
+**"No directories configured"**
+- Run `--config-init` to create configuration file
+- Use `--config-add` to add directories
+- Check `~/.claude-gh-standup/config.json` exists
+
+**"Directory not found" when adding**
+- Ensure the path exists and is a valid git repository
+- Use absolute paths or `~/` for home directory
+- Current directory can be added with `--config-add .`
+
+**Reports show only legacy mode despite having config**
+- Ensure `directories` array in config is not empty
+- Check that at least one directory has `"enabled": true`
+- Use `--config-list` to verify configuration
+
+**Local changes not detected**
+- Ensure directory path is correct (not symlink)
+- Verify git repository has a configured remote (`git remote -v`)
+- Check that branch exists on remote (`git branch -r`)
 
 ### "Commit search failed"
 - This is common due to GitHub API restrictions
