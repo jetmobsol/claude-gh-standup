@@ -9,10 +9,13 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,6 +36,15 @@ public class Main {
         List<String> team = null;
         String output = null;
         boolean noClaude = false;
+
+        // Date shortcuts
+        boolean yesterday = false;
+        boolean lastWeek = false;
+
+        // Config commands
+        String configCommand = null;  // init, add, remove, list
+        String configPath = null;
+        String configId = null;
     }
 
     public static Args parseArgs(String[] args) {
@@ -79,6 +91,40 @@ public class Main {
                 case "--no-claude":
                     parsed.noClaude = true;
                     break;
+                case "--yesterday":
+                    parsed.yesterday = true;
+                    break;
+                case "--last-week":
+                    parsed.lastWeek = true;
+                    break;
+                case "--config-init":
+                    parsed.configCommand = "init";
+                    break;
+                case "--config-add":
+                    parsed.configCommand = "add";
+                    if (i + 1 < args.length) {
+                        parsed.configPath = args[++i];
+                    }
+                    // Check for optional --id flag
+                    if (i + 1 < args.length && args[i + 1].equals("--id")) {
+                        i++; // Skip --id
+                        if (i + 1 < args.length) {
+                            parsed.configId = args[++i];
+                        }
+                    }
+                    break;
+                case "--config-list":
+                    parsed.configCommand = "list";
+                    break;
+                case "--config-remove":
+                    parsed.configCommand = "remove";
+                    if (i + 1 < args.length) {
+                        parsed.configId = args[++i];
+                    }
+                    break;
+                case "--id":
+                    // Handled inline with --config-add
+                    break;
                 case "--help":
                 case "-h":
                     printHelp();
@@ -104,6 +150,16 @@ public class Main {
         System.out.println("  --output, -o FILE   Write to file instead of stdout");
         System.out.println("  --no-claude         Skip claude -p call and output prompt directly");
         System.out.println("  --help, -h          Show this help message");
+        System.out.println();
+        System.out.println("Date Shortcuts:");
+        System.out.println("  --yesterday         Yesterday's work (Friday if Monday)");
+        System.out.println("  --last-week         Last 7 days of activity");
+        System.out.println();
+        System.out.println("Configuration:");
+        System.out.println("  --config-add PATH [--id ID]  Add directory to config");
+        System.out.println("  --config-list                List configured directories");
+        System.out.println("  --config-remove ID           Remove directory from config");
+        System.out.println("  --config-init                Initialize configuration file");
     }
 
     public static String getCurrentUser() throws Exception {
@@ -138,7 +194,11 @@ public class Main {
                 JsonObject commitData = commit.getAsJsonObject("commit");
                 JsonObject repo = commit.getAsJsonObject("repository");
 
-                String repoName = repo.get("fullName").getAsString();
+                if (repo == null || repo.get("nameWithOwner") == null) {
+                    continue; // Skip commits without repository info
+                }
+
+                String repoName = repo.get("nameWithOwner").getAsString();
                 String message = commitData.get("message").getAsString().split("\n")[0]; // First line only
                 String sha = commit.get("sha").getAsString().substring(0, 7);
 
@@ -156,7 +216,11 @@ public class Main {
                 JsonObject pr = prElement.getAsJsonObject();
                 JsonObject repo = pr.getAsJsonObject("repository");
 
-                String repoName = repo.get("fullName").getAsString();
+                if (repo == null || repo.get("nameWithOwner") == null) {
+                    continue; // Skip PRs without repository info
+                }
+
+                String repoName = repo.get("nameWithOwner").getAsString();
                 int number = pr.get("number").getAsInt();
                 String title = pr.get("title").getAsString();
                 String state = pr.get("state").getAsString();
@@ -175,7 +239,11 @@ public class Main {
                 JsonObject issue = issueElement.getAsJsonObject();
                 JsonObject repo = issue.getAsJsonObject("repository");
 
-                String repoName = repo.get("fullName").getAsString();
+                if (repo == null || repo.get("nameWithOwner") == null) {
+                    continue; // Skip issues without repository info
+                }
+
+                String repoName = repo.get("nameWithOwner").getAsString();
                 int number = issue.get("number").getAsInt();
                 String title = issue.get("title").getAsString();
                 String state = issue.get("state").getAsString();
@@ -289,10 +357,332 @@ public class Main {
         return output.toString();
     }
 
+    private static int calculateDays(Args parsed) {
+        if (parsed.yesterday) {
+            LocalDate today = LocalDate.now();
+            if (today.getDayOfWeek() == DayOfWeek.MONDAY) {
+                return 3;  // Friday + Saturday + Sunday
+            }
+            return 1;
+        }
+        if (parsed.lastWeek) {
+            return 7;
+        }
+        return parsed.days;  // Explicit --days flag
+    }
+
+    private static String expandTilde(String path) {
+        if (path.startsWith("~/")) {
+            return System.getProperty("user.home") + path.substring(1);
+        }
+        return path;
+    }
+
+    private static JsonObject loadConfigJson() {
+        try {
+            String configPath = expandTilde("~/.claude-gh-standup/config.json");
+            if (!Files.exists(Paths.get(configPath))) {
+                return null;
+            }
+            String json = Files.readString(Paths.get(configPath));
+            return gson.fromJson(json, JsonObject.class);
+        } catch (Exception e) {
+            System.err.println("Warning: Could not load config: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static boolean shouldUseMultiDirectoryMode(JsonObject config, Args parsed) {
+        if (config == null) return false;
+        if (parsed.repo != null) return false;  // Explicit --repo overrides config
+        if (!config.has("directories")) return false;
+
+        JsonArray dirs = config.getAsJsonArray("directories");
+        return dirs != null && dirs.size() > 0;
+    }
+
+    private static void runMultiDirectoryMode(JsonObject config, Args parsed) throws Exception {
+        System.err.println("Running in multi-directory mode...");
+
+        // Calculate effective days
+        int days = calculateDays(parsed);
+
+        // Get user
+        String user = parsed.user;
+        if (user == null && parsed.team == null) {
+            System.err.println("Detecting current GitHub user...");
+            user = getCurrentUser();
+        }
+
+        // Call ActivityAggregator
+        System.err.println("Aggregating activities across directories...");
+        String configJson = gson.toJson(config);
+
+        ProcessBuilder pb = new ProcessBuilder(
+            "jbang", "scripts/ActivityAggregator.java",
+            configJson, user, String.valueOf(days)
+        );
+
+        Process process = pb.start();
+        StringBuilder aggregatedJson = new StringBuilder();
+
+        // Capture aggregator stderr
+        new Thread(() -> {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    System.err.println(line);
+                }
+            } catch (IOException e) {
+                // Ignore
+            }
+        }).start();
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                aggregatedJson.append(line);
+            }
+        }
+
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            System.err.println("ActivityAggregator failed");
+            System.exit(1);
+        }
+
+        // Parse aggregated data
+        JsonObject aggregated = gson.fromJson(aggregatedJson.toString(), JsonObject.class);
+
+        // Format multi-dir prompt
+        String prompt = formatMultiDirPrompt(aggregated);
+
+        // Generate report
+        String report;
+        if (parsed.noClaude) {
+            report = prompt;
+        } else {
+            report = generateReportWithClaude(prompt);
+        }
+
+        // Auto-save if enabled
+        if (config.has("reportSettings")) {
+            JsonObject reportSettings = config.getAsJsonObject("reportSettings");
+            boolean autoSave = reportSettings.get("autoSaveReports").getAsBoolean();
+            if (autoSave) {
+                saveReport(report, config, aggregated);
+            }
+        }
+
+        // Output to stdout
+        System.out.println(report);
+    }
+
+    private static String formatMultiDirPrompt(JsonObject aggregated) throws IOException {
+        // Load template
+        String templatePath = "prompts/multidir-standup.prompt.md";
+        String template = Files.readString(Paths.get(templatePath));
+
+        // Extract data
+        JsonObject githubActivity = aggregated.getAsJsonObject("githubActivity");
+        JsonArray localChanges = aggregated.getAsJsonArray("localChanges");
+        JsonObject metadata = aggregated.getAsJsonObject("metadata");
+
+        // Format GitHub activity
+        StringBuilder githubStr = new StringBuilder();
+        for (String repo : githubActivity.keySet()) {
+            githubStr.append("## Repository: ").append(repo).append("\n\n");
+            JsonObject activity = githubActivity.getAsJsonObject(repo);
+            githubStr.append(formatActivities(activity));
+            githubStr.append("\n");
+        }
+
+        // Format local changes
+        StringBuilder localStr = new StringBuilder();
+        for (JsonElement elem : localChanges) {
+            JsonObject change = elem.getAsJsonObject();
+            String dirId = change.get("directoryId").getAsString();
+            String path = change.get("path").getAsString();
+            String branch = change.get("branch").getAsString();
+
+            localStr.append("## ").append(dirId).append(" (").append(path).append(" - branch: ").append(branch).append(")\n\n");
+
+            JsonObject uncommitted = change.getAsJsonObject("uncommitted");
+            JsonObject unpushed = change.getAsJsonObject("unpushed");
+
+            if (uncommitted.get("hasChanges").getAsBoolean()) {
+                localStr.append("### Uncommitted Changes\n");
+
+                JsonArray staged = uncommitted.getAsJsonArray("staged");
+                if (staged.size() > 0) {
+                    localStr.append("- Staged: ");
+                    for (int i = 0; i < staged.size(); i++) {
+                        if (i > 0) localStr.append(", ");
+                        localStr.append(staged.get(i).getAsString());
+                    }
+                    localStr.append("\n");
+                }
+
+                JsonArray unstaged = uncommitted.getAsJsonArray("unstaged");
+                if (unstaged.size() > 0) {
+                    localStr.append("- Unstaged: ");
+                    for (int i = 0; i < unstaged.size(); i++) {
+                        if (i > 0) localStr.append(", ");
+                        localStr.append(unstaged.get(i).getAsString());
+                    }
+                    localStr.append("\n");
+                }
+
+                String summary = uncommitted.get("summary").getAsString();
+                if (!summary.isEmpty()) {
+                    localStr.append("- Summary: ").append(summary).append("\n");
+                }
+            } else {
+                localStr.append("### Uncommitted Changes\n- None\n");
+            }
+
+            localStr.append("\n");
+
+            if (unpushed.get("hasCommits").getAsBoolean()) {
+                localStr.append("### Unpushed Commits (").append(unpushed.get("count").getAsInt()).append(")\n");
+                JsonArray commits = unpushed.getAsJsonArray("commits");
+                for (JsonElement commit : commits) {
+                    localStr.append("- ").append(commit.getAsString()).append("\n");
+                }
+            } else {
+                localStr.append("### Unpushed Commits\n- None\n");
+            }
+
+            localStr.append("\n");
+        }
+
+        // Replace placeholders
+        String formatted = template
+            .replace("{{githubActivity}}", githubStr.toString())
+            .replace("{{localChanges}}", localStr.toString())
+            .replace("{{user}}", metadata.get("user").getAsString())
+            .replace("{{days}}", metadata.get("days").getAsString())
+            .replace("{{directoryCount}}", metadata.get("directoryCount").getAsString())
+            .replace("{{repoCount}}", metadata.get("repoCount").getAsString());
+
+        return formatted;
+    }
+
+    private static String generateReportWithClaude(String prompt) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder("claude", "-p", prompt);
+        pb.inheritIO();
+        Process process = pb.start();
+        int exitCode = process.waitFor();
+
+        if (exitCode != 0) {
+            throw new RuntimeException("Claude generation failed");
+        }
+
+        return "";  // Output already printed via inheritIO
+    }
+
+    private static void saveReport(String report, JsonObject config, JsonObject aggregated) throws IOException {
+        JsonObject reportSettings = config.getAsJsonObject("reportSettings");
+        String reportDir = expandTilde(reportSettings.get("reportDirectory").getAsString());
+
+        // Create directory if needed
+        Files.createDirectories(Paths.get(reportDir));
+
+        // Generate filename
+        LocalDate today = LocalDate.now();
+        String date = today.toString();  // YYYY-MM-DD format
+
+        JsonObject metadata = aggregated.getAsJsonObject("metadata");
+        int repoCount = metadata.get("repoCount").getAsInt();
+
+        String filename;
+        if (repoCount == 1) {
+            // Single repo: include repo name
+            JsonObject githubActivity = aggregated.getAsJsonObject("githubActivity");
+            String repoName = githubActivity.keySet().iterator().next();
+            String sanitized = repoName.replace("/", "-");
+            filename = date + "-" + sanitized + ".md";
+        } else {
+            // Multiple repos
+            filename = date + "-multi.md";
+        }
+
+        Path filepath = Paths.get(reportDir, filename);
+        Files.writeString(filepath, report);
+        System.err.println("✓ Report saved to: " + filepath);
+    }
+
+    private static void handleConfigCommand(Args parsed) throws Exception {
+        List<String> cmArgs = new ArrayList<>();
+        cmArgs.add(parsed.configCommand);
+
+        switch (parsed.configCommand) {
+            case "init":
+                // No additional args
+                break;
+            case "add":
+                if (parsed.configPath == null) {
+                    System.err.println("Error: --config-add requires a path");
+                    System.err.println("Usage: --config-add PATH [--id ID]");
+                    System.exit(1);
+                }
+                cmArgs.add(parsed.configPath);
+
+                // Auto-generate ID if not provided
+                String id = parsed.configId;
+                if (id == null) {
+                    // Generate ID from path (last directory name)
+                    Path path = Paths.get(parsed.configPath);
+                    id = path.getFileName().toString();
+                }
+                cmArgs.add(id);
+                break;
+            case "remove":
+                if (parsed.configId == null) {
+                    System.err.println("Error: --config-remove requires an ID");
+                    System.err.println("Usage: --config-remove ID");
+                    System.exit(1);
+                }
+                cmArgs.add(parsed.configId);
+                break;
+            case "list":
+                // No additional args
+                break;
+        }
+
+        // Run ConfigManager with direct stdout (inheritIO)
+        List<String> command = new ArrayList<>();
+        command.add("jbang");
+        command.add("scripts/ConfigManager.java");
+        command.addAll(cmArgs);
+
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.inheritIO();  // Pass through stdout/stderr directly
+        Process process = pb.start();
+        int exitCode = process.waitFor();
+        System.exit(exitCode);
+    }
+
     public static void main(String... args) {
         try {
             Args parsed = parseArgs(args);
 
+            // Handle config commands first
+            if (parsed.configCommand != null) {
+                handleConfigCommand(parsed);
+                return;
+            }
+
+            // Load configuration and determine mode
+            JsonObject config = loadConfigJson();
+            boolean multiDirMode = shouldUseMultiDirectoryMode(config, parsed);
+
+            if (multiDirMode) {
+                runMultiDirectoryMode(config, parsed);
+                return;
+            }
+
+            // Legacy single-directory mode
             // Auto-detect repository if not specified
             if (parsed.repo == null) {
                 String detectedRepo = getCurrentRepository();
@@ -321,9 +711,10 @@ public class Main {
                     System.err.println("Generating report for " + member + "...");
 
                     // Collect activity
+                    int days = calculateDays(parsed);
                     List<String> activityArgs = new ArrayList<>();
                     activityArgs.add(member);
-                    activityArgs.add(String.valueOf(parsed.days));
+                    activityArgs.add(String.valueOf(days));
                     if (parsed.repo != null) {
                         activityArgs.add(parsed.repo);
                     }
@@ -352,9 +743,10 @@ public class Main {
             System.err.println("Collecting activity for " + parsed.user + "...");
 
             // Collect activity
+            int days = calculateDays(parsed);
             List<String> activityArgs = new ArrayList<>();
             activityArgs.add(parsed.user);
-            activityArgs.add(String.valueOf(parsed.days));
+            activityArgs.add(String.valueOf(days));
             if (parsed.repo != null) {
                 activityArgs.add(parsed.repo);
             }

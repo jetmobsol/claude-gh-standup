@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "directories": [],
+  "reportSettings": {
+    "defaultDays": 1,
+    "autoSaveReports": true,
+    "reportDirectory": "~/.claude-gh-standup/reports"
+  }
+}

@@ -125,7 +125,7 @@ public class AnalyzeDiffs {
 
             // Extract repository name from repository object
             JsonObject repoObj = pr.getAsJsonObject("repository");
-            String repoName = repoObj.get("fullName").getAsString();
+            String repoName = repoObj.get("nameWithOwner").getAsString();
 
             try {
                 String diffContent = analyzePRDiff(repoName, prNumber);
