@@ -159,8 +159,11 @@ public class ActivityAggregator {
     }
 
     private static JsonObject callLocalChangesDetector(Directory dir) throws Exception {
+        String installDir = System.getProperty("user.home") + "/.claude-gh-standup";
+        String scriptPath = installDir + "/scripts/LocalChangesDetector.java";
+
         ProcessBuilder pb = new ProcessBuilder(
-            "jbang", "scripts/LocalChangesDetector.java",
+            "jbang", scriptPath,
             dir.id, dir.path, dir.branch
         );
 
@@ -203,8 +206,11 @@ public class ActivityAggregator {
     }
 
     private static JsonObject callCollectActivity(String user, int days, String repo) throws Exception {
+        String installDir = System.getProperty("user.home") + "/.claude-gh-standup";
+        String scriptPath = installDir + "/scripts/CollectActivity.java";
+
         ProcessBuilder pb = new ProcessBuilder(
-            "jbang", "scripts/CollectActivity.java",
+            "jbang", scriptPath,
             user, String.valueOf(days), repo
         );
 

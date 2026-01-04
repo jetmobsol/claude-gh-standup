@@ -9,8 +9,10 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -310,10 +312,17 @@ public class Main {
             System.err.println("[DEBUG] Arg " + i + " length: " + scriptArgs.get(i).length());
         }
 
-        Path scriptPath = Paths.get("scripts", scriptName);
+        // Determine the installation directory (where Main.java is located)
+        String installDir = System.getProperty("user.home") + "/.claude-gh-standup";
+        Path scriptPath = Paths.get(installDir, "scripts", scriptName);
+
         if (!Files.exists(scriptPath)) {
-            // Try relative to current directory
-            scriptPath = Paths.get(scriptName);
+            // Fallback: try relative to current directory (for development)
+            scriptPath = Paths.get("scripts", scriptName);
+            if (!Files.exists(scriptPath)) {
+                // Last resort: just the script name
+                scriptPath = Paths.get(scriptName);
+            }
         }
         System.err.println("[DEBUG] Script path: " + scriptPath);
 
@@ -418,8 +427,14 @@ public class Main {
         System.err.println("Aggregating activities across directories...");
         String configJson = gson.toJson(config);
 
+        String installDir = System.getProperty("user.home") + "/.claude-gh-standup";
+        String aggregatorScript = installDir + "/scripts/ActivityAggregator.java";
+        if (!Files.exists(Paths.get(aggregatorScript))) {
+            aggregatorScript = "scripts/ActivityAggregator.java";  // Fallback for development
+        }
+
         ProcessBuilder pb = new ProcessBuilder(
-            "jbang", "scripts/ActivityAggregator.java",
+            "jbang", aggregatorScript,
             configJson, user, String.valueOf(days)
         );
 
@@ -480,8 +495,12 @@ public class Main {
 
     private static String formatMultiDirPrompt(JsonObject aggregated) throws IOException {
         // Load template
-        String templatePath = "prompts/multidir-standup.prompt.md";
-        String template = Files.readString(Paths.get(templatePath));
+        String installDir = System.getProperty("user.home") + "/.claude-gh-standup";
+        Path templatePath = Paths.get(installDir, "prompts/multidir-standup.prompt.md");
+        if (!Files.exists(templatePath)) {
+            templatePath = Paths.get("prompts/multidir-standup.prompt.md");  // Fallback for development
+        }
+        String template = Files.readString(templatePath);
 
         // Extract data
         JsonObject githubActivity = aggregated.getAsJsonObject("githubActivity");
@@ -510,7 +529,7 @@ public class Main {
             JsonObject uncommitted = change.getAsJsonObject("uncommitted");
             JsonObject unpushed = change.getAsJsonObject("unpushed");
 
-            if (uncommitted.get("hasChanges").getAsBoolean()) {
+            if (uncommitted != null && uncommitted.has("hasChanges") && uncommitted.get("hasChanges").getAsBoolean()) {
                 localStr.append("### Uncommitted Changes\n");
 
                 JsonArray staged = uncommitted.getAsJsonArray("staged");
@@ -543,7 +562,7 @@ public class Main {
 
             localStr.append("\n");
 
-            if (unpushed.get("hasCommits").getAsBoolean()) {
+            if (unpushed != null && unpushed.has("hasCommits") && unpushed.get("hasCommits").getAsBoolean()) {
                 localStr.append("### Unpushed Commits (").append(unpushed.get("count").getAsInt()).append(")\n");
                 JsonArray commits = unpushed.getAsJsonArray("commits");
                 for (JsonElement commit : commits) {
@@ -569,16 +588,50 @@ public class Main {
     }
 
     private static String generateReportWithClaude(String prompt) throws Exception {
-        ProcessBuilder pb = new ProcessBuilder("claude", "-p", prompt);
-        pb.inheritIO();
+        // Use stdin to pass prompt (avoids command-line length limits)
+        ProcessBuilder pb = new ProcessBuilder("claude", "-p", "-");
         Process process = pb.start();
+
+        StringBuilder reportOutput = new StringBuilder();
+
+        // Write prompt to claude's stdin in a separate thread
+        new Thread(() -> {
+            try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()))) {
+                writer.write(prompt);
+                writer.flush();
+            } catch (IOException e) {
+                System.err.println("Error writing to claude stdin: " + e.getMessage());
+            }
+        }).start();
+
+        // Stream stderr to System.err in real-time (for status messages)
+        new Thread(() -> {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    System.err.println(line);
+                }
+            } catch (IOException e) {
+                // Ignore
+            }
+        }).start();
+
+        // Capture stdout and print in real-time
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                System.out.println(line);  // Print to user
+                reportOutput.append(line).append("\n");  // Capture for saving
+            }
+        }
+
         int exitCode = process.waitFor();
 
         if (exitCode != 0) {
-            throw new RuntimeException("Claude generation failed");
+            throw new RuntimeException("Claude generation failed with exit code: " + exitCode);
         }
 
-        return "";  // Output already printed via inheritIO
+        return reportOutput.toString();
     }
 
     private static void saveReport(String report, JsonObject config, JsonObject aggregated) throws IOException {
@@ -605,6 +658,31 @@ public class Main {
         } else {
             // Multiple repos
             filename = date + "-multi.md";
+        }
+
+        Path filepath = Paths.get(reportDir, filename);
+        Files.writeString(filepath, report);
+        System.err.println("✓ Report saved to: " + filepath);
+    }
+
+    private static void saveLegacyReport(String report, JsonObject reportSettings, String repo) throws IOException {
+        String reportDir = expandTilde(reportSettings.get("reportDirectory").getAsString());
+
+        // Create directory if needed
+        Files.createDirectories(Paths.get(reportDir));
+
+        // Generate filename
+        LocalDate today = LocalDate.now();
+        String date = today.toString();  // YYYY-MM-DD format
+
+        String filename;
+        if (repo != null) {
+            // Specific repo: include repo name
+            String sanitized = repo.replace("/", "-");
+            filename = date + "-" + sanitized + ".md";
+        } else {
+            // All repos
+            filename = date + "-all-repos.md";
         }
 
         Path filepath = Paths.get(reportDir, filename);
@@ -651,9 +729,15 @@ public class Main {
         }
 
         // Run ConfigManager with direct stdout (inheritIO)
+        String installDir = System.getProperty("user.home") + "/.claude-gh-standup";
+        String configScript = installDir + "/scripts/ConfigManager.java";
+        if (!Files.exists(Paths.get(configScript))) {
+            configScript = "scripts/ConfigManager.java";  // Fallback for development
+        }
+
         List<String> command = new ArrayList<>();
         command.add("jbang");
-        command.add("scripts/ConfigManager.java");
+        command.add(configScript);
         command.addAll(cmArgs);
 
         ProcessBuilder pb = new ProcessBuilder(command);
@@ -762,7 +846,11 @@ public class Main {
             System.err.println("Generating standup report...");
 
             // Call claude directly instead of through GenerateReport.java subprocess
-            Path promptPath = Paths.get("prompts/standup.prompt.md");
+            String installDir = System.getProperty("user.home") + "/.claude-gh-standup";
+            Path promptPath = Paths.get(installDir, "prompts/standup.prompt.md");
+            if (!Files.exists(promptPath)) {
+                promptPath = Paths.get("prompts/standup.prompt.md");  // Fallback for development
+            }
             String promptTemplate = Files.readString(promptPath);
 
             // Parse and format activities
@@ -779,20 +867,59 @@ public class Main {
                 // Output the prompt directly for Claude Code to process
                 System.out.println(fullPrompt);
             } else {
-                // Call claude -p with the full prompt
-                ProcessBuilder claudeBuilder = new ProcessBuilder("claude", "-p", fullPrompt);
-                claudeBuilder.inheritIO();
+                // Call claude -p and pipe prompt via stdin (avoids command-line length limits)
+                ProcessBuilder claudeBuilder = new ProcessBuilder("claude", "-p", "-");
                 Process claudeProcess = claudeBuilder.start();
+
+                // Capture output for auto-save
+                StringBuilder reportOutput = new StringBuilder();
+
+                // Write prompt to claude's stdin in a separate thread
+                new Thread(() -> {
+                    try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(claudeProcess.getOutputStream()))) {
+                        writer.write(fullPrompt);
+                        writer.flush();
+                    } catch (IOException e) {
+                        System.err.println("Error writing to claude stdin: " + e.getMessage());
+                    }
+                }).start();
+
+                // Stream stderr to System.err in real-time (for status messages)
+                new Thread(() -> {
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(claudeProcess.getErrorStream()))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            System.err.println(line);
+                        }
+                    } catch (IOException e) {
+                        // Ignore
+                    }
+                }).start();
+
+                // Capture stdout and print in real-time
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(claudeProcess.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        System.out.println(line);  // Print to user
+                        reportOutput.append(line).append("\n");  // Capture for saving
+                    }
+                }
+
                 int claudeExitCode = claudeProcess.waitFor();
 
                 if (claudeExitCode != 0) {
                     System.err.println("Claude invocation failed with exit code: " + claudeExitCode);
                     System.exit(claudeExitCode);
                 }
-            }
 
-            // Note: Export formatting is handled by GenerateReport for now
-            // Full export integration would require capturing claude output
+                // Auto-save if enabled in config
+                if (config != null && config.has("reportSettings")) {
+                    JsonObject reportSettings = config.getAsJsonObject("reportSettings");
+                    if (reportSettings.has("autoSaveReports") && reportSettings.get("autoSaveReports").getAsBoolean()) {
+                        saveLegacyReport(reportOutput.toString(), reportSettings, parsed.repo);
+                    }
+                }
+            }
 
         } catch (NumberFormatException e) {
             System.err.println("Error: Invalid number format");

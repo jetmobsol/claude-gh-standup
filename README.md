@@ -218,7 +218,108 @@ This project is inspired by and adapted from **[gh-standup](https://github.com/s
 
 ## Development
 
-### Testing Individual Scripts
+### Development Mode Setup (Best of Both Worlds)
+
+When developing features, the standard installation copies files to `~/.claude-gh-standup/`, which means every code change requires reinstalling. For fast iteration, use **symlink mode** to make your development code immediately available to the slash command.
+
+#### Quick Setup: Development Mode
+
+**1. Clone repository for development:**
+```bash
+git clone https://github.com/jetmobsol/claude-gh-standup.git ~/projects/claude-gh-standup
+cd ~/projects/claude-gh-standup
+git checkout -b feature/my-feature
+```
+
+**2. Create symlink installation (instead of copying files):**
+```bash
+# Remove existing installation if present
+rm -rf ~/.claude-gh-standup
+
+# Create symlink to your dev directory
+ln -s ~/projects/claude-gh-standup ~/.claude-gh-standup
+
+# Create slash command symlink for Claude Code
+mkdir -p ~/.claude/commands
+rm -rf ~/.claude/commands/claude-gh-standup
+ln -s ~/.claude-gh-standup ~/.claude/commands/claude-gh-standup
+```
+
+**3. Test your changes instantly:**
+```bash
+# Edit code in your dev directory
+vim ~/projects/claude-gh-standup/scripts/Main.java
+
+# Test immediately - no reinstall needed!
+/claude-gh-standup --yesterday
+
+# Or test directly with JBang for even faster iteration
+jbang scripts/Main.java --yesterday --debug
+```
+
+#### Development Workflow Comparison
+
+| Method | Speed | Use Case | Invocation |
+|--------|-------|----------|------------|
+| **JBang Direct** | ⚡ Fastest | Quick script testing | `jbang scripts/Main.java --args` |
+| **Symlink Mode** | ⚡ Fast | Full slash command testing | `/claude-gh-standup --args` |
+| **Install Script** | 🐌 Slow | Production installation | Requires `./install.sh` on every change |
+
+#### Switching Between Dev and Production
+
+**Switch to production (stable main branch):**
+```bash
+# Remove symlinks
+rm ~/.claude-gh-standup
+rm ~/.claude/commands/claude-gh-standup
+
+# Run normal installation (copies files from main branch)
+curl -fsSL https://raw.githubusercontent.com/jetmobsol/claude-gh-standup/main/install.sh | bash
+```
+
+**Switch back to development:**
+```bash
+# Remove copied files
+rm -rf ~/.claude-gh-standup
+
+# Recreate symlinks
+ln -s ~/projects/claude-gh-standup ~/.claude-gh-standup
+ln -s ~/.claude-gh-standup ~/.claude/commands/claude-gh-standup
+```
+
+#### Verifying Development Mode
+
+**Check symlinks are correct:**
+```bash
+# Should point to your dev directory
+ls -la ~/.claude-gh-standup
+# Example output: ~/.claude-gh-standup -> /Users/you/projects/claude-gh-standup
+
+ls -la ~/.claude/commands/claude-gh-standup
+# Example output: ~/.claude/commands/claude-gh-standup -> /Users/you/.claude-gh-standup
+```
+
+**Verify slash command uses dev code:**
+```bash
+# Add a debug statement to Main.java
+echo 'System.err.println("🚧 DEV MODE ACTIVE");' >> scripts/Main.java
+
+# Run slash command - should see your debug message
+/claude-gh-standup --help
+
+# Clean up
+git checkout scripts/Main.java
+```
+
+#### Development Best Practices
+
+1. **Fast Iteration**: Use `jbang scripts/Main.java` for quick testing
+2. **Integration Testing**: Use `/claude-gh-standup` to test the full slash command
+3. **Branching**: Always develop on feature branches, never on main
+4. **Symlinks**: Keep symlinks during development, reinstall for production use
+5. **Config Isolation**: Test multi-directory with separate config.json in dev directory
+
+#### Testing Individual Scripts
 
 Each Java script can be tested independently with JBang:
 
@@ -308,6 +409,25 @@ Multi-directory mode uses `~/.claude-gh-standup/config.json`:
 - Reports auto-saved to `reportDirectory` with filename `YYYY-MM-DD-repo.md`
 
 ## Troubleshooting
+
+### Development Mode Issues
+
+**"Changes not reflected in slash command"**
+- Verify symlinks exist: `ls -la ~/.claude-gh-standup`
+- Ensure symlink points to correct dev directory
+- If using copied installation, you need to reinstall after each change
+- Switch to symlink mode (see Development section)
+
+**"Using old version of code"**
+- Check if `~/.claude-gh-standup` is a symlink or copied directory:
+  - Symlink: `ls -la ~/.claude-gh-standup` shows `->` pointing to dev directory
+  - Copied: Shows as regular directory - requires reinstallation for updates
+- Recreate symlinks if needed (see Development > Switching Between Dev and Production)
+
+**"Testing on wrong branch"**
+- Symlink mode uses whatever branch you're on in dev directory
+- Check current branch: `cd ~/.claude-gh-standup && git branch`
+- Switch branch in dev directory: `cd ~/projects/claude-gh-standup && git checkout main`
 
 ### "Command not found"
 - Ensure repository is in `~/.claude/commands/claude-gh-standup/` or `.claude/commands/claude-gh-standup/`
