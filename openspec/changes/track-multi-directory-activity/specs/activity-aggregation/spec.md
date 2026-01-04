@@ -62,6 +62,17 @@ THEN the groups are: {"owner/app1": [dir1, dir3], "owner/app2": [dir2]}
 AND each group is processed once for GitHub activity
 ```
 
+#### Scenario: GitHub activity includes ALL branches (backward compatibility)
+```
+GIVEN 2 directories configured for "owner/myapp" on branches "main" and "feature/new-ui"
+AND the user has commits on branch "hotfix/bug-123" (NOT in configured directories)
+WHEN the system collects GitHub activity for "owner/myapp"
+THEN the activity includes commits from ALL branches (main, feature/new-ui, hotfix/bug-123)
+AND the activity includes PRs from ANY branch
+AND the activity includes issues (repository-scoped, not branch-scoped)
+AND the behavior is IDENTICAL to legacy single-directory mode
+```
+
 ---
 
 ### Requirement: Parallel Local Change Detection
