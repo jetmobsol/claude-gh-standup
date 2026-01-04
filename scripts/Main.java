@@ -284,7 +284,11 @@ public class Main {
                 JsonObject repo = commit.getAsJsonObject("repository");
 
                 if (repo == null || repo.get("nameWithOwner") == null) {
-                    System.err.println("⚠️ Skipping commit without repository info");
+                    String sha = commit.has("sha") ? commit.get("sha").getAsString().substring(0, 7) : "unknown";
+                    String msg = commitData != null && commitData.has("message")
+                        ? commitData.get("message").getAsString().split("\n")[0]
+                        : "unknown";
+                    System.err.println("⚠️ Skipping commit without repository info: " + sha + " - " + msg);
                     continue;
                 }
 
@@ -584,8 +588,11 @@ public class Main {
             }
         }
 
-        // Output to stdout
-        System.out.println(report);
+        // Note: report is already printed in real-time by generateReportWithClaude()
+        // Only print here if --no-claude was used (prompt mode)
+        if (parsed.noClaude) {
+            System.out.println(report);
+        }
     }
 
     private static String formatMultiDirPrompt(JsonObject aggregated) throws IOException {
@@ -736,18 +743,20 @@ public class Main {
         String date = today.toString();  // YYYY-MM-DD format
 
         JsonObject metadata = aggregated.getAsJsonObject("metadata");
-        int repoCount = metadata.get("repoCount").getAsInt();
 
+        // Get configured repos from metadata (added by ActivityAggregator)
         String filename;
-        if (repoCount == 1) {
-            // Single repo: include repo name
-            JsonObject githubActivity = aggregated.getAsJsonObject("githubActivity");
-            String repoName = githubActivity.keySet().iterator().next();
+        if (metadata.has("configuredRepos") && metadata.getAsJsonArray("configuredRepos").size() == 1) {
+            // Single configured repo: include repo name
+            String repoName = metadata.getAsJsonArray("configuredRepos").get(0).getAsString();
             String sanitized = repoName.replace("/", "-");
             filename = date + "-" + sanitized + ".md";
-        } else {
-            // Multiple repos
+        } else if (metadata.has("configuredRepos") && metadata.getAsJsonArray("configuredRepos").size() > 1) {
+            // Multiple configured repos
             filename = date + "-multi.md";
+        } else {
+            // Fallback: all repos
+            filename = date + "-all-repos.md";
         }
 
         Path filepath = Paths.get(reportDir, filename);
@@ -950,7 +959,8 @@ public class Main {
             // Inject data into template
             String fullPrompt = promptTemplate
                     .replace("{{activities}}", formattedActivities)
-                    .replace("{{diffs}}", diffSummary);
+                    .replace("{{diffs}}", diffSummary)
+                    .replace("{{days}}", String.valueOf(days));
 
             // Check if we should skip claude -p (when running inside Claude Code)
             if (parsed.noClaude) {

@@ -4,7 +4,10 @@ You are an AI assistant helping to generate professional standup reports based o
 
 Your task is to create a concise, well-structured standup report that synthesizes the developer's work across multiple branches and repositories. The report should be written in first person and include:
 
-1. **Yesterday's Accomplishments**: What was completed/worked on (from GitHub activity)
+1. **Accomplishments**: What was completed/worked on (use "Last Week's Accomplishments" if 7 days, "Yesterday's Accomplishments" if 1-2 days, otherwise "Recent Accomplishments")
+   - **IMPORTANT**: Group accomplishments by repository with full GitHub URL (e.g., `https://github.com/owner/repo`)
+   - Even if only one repository, explicitly mention it with the URL
+   - Format: `### [owner/repo](https://github.com/owner/repo)` followed by bullet points
 2. **Work in Progress**: Current local work not yet pushed (from local changes)
 3. **Today's Plans**: Logical next steps based on all activity
 4. **Blockers/Challenges**: Any potential issues, dependencies, or context-switching concerns
@@ -45,7 +48,7 @@ The following shows work-in-progress in each configured directory/branch:
 ---
 
 Format the output as a clean, readable report. Use clear sections for:
-1. **Yesterday's Accomplishments** (from GitHub activity)
+1. **Accomplishments** (from GitHub activity, grouped by repository with full URLs)
 2. **Work in Progress** (from local changes, organized by directory/branch)
 3. **Today's Plans**
 4. **Blockers/Challenges** (mention context switching if relevant)
