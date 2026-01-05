@@ -20,11 +20,18 @@ import java.util.Map;
 /**
  * AnalyzeDiffs - Analyzes file diffs for PRs and commits
  *
- * Usage: jbang AnalyzeDiffs.java <activity-json>
+ * Usage: jbang AnalyzeDiffs.java <activity-json> [--debug]
  */
 public class AnalyzeDiffs {
 
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    private static boolean DEBUG = false;
+
+    private static void debug(String message) {
+        if (DEBUG) {
+            System.err.println("[DEBUG] AnalyzeDiffs: " + message);
+        }
+    }
 
     public static class FileStat {
         String file;
@@ -61,6 +68,7 @@ public class AnalyzeDiffs {
         command.add("-R");
         command.add(repo);
 
+        debug("Executing: " + String.join(" ", command));
         ProcessBuilder pb = new ProcessBuilder(command);
         Process process = pb.start();
 
@@ -74,9 +82,11 @@ public class AnalyzeDiffs {
 
         int exitCode = process.waitFor();
         if (exitCode != 0) {
+            debug("PR diff request failed with exit code: " + exitCode);
             return null; // PR diff unavailable
         }
 
+        debug("PR #" + prNumber + " diff received, length: " + output.length() + " chars");
         return output.toString();
     }
 
@@ -113,11 +123,13 @@ public class AnalyzeDiffs {
         }
         summary.filesChanged = fileStats.size();
 
+        debug("Parsed diff: " + summary.filesChanged + " files, +" + summary.totalAdditions + "/-" + summary.totalDeletions);
         return summary;
     }
 
     public static DiffSummary analyzePRDiffs(JsonArray prs) {
         DiffSummary totalSummary = new DiffSummary();
+        debug("Analyzing diffs for " + prs.size() + " PRs");
 
         for (JsonElement prElement : prs) {
             JsonObject pr = prElement.getAsJsonObject();
@@ -127,6 +139,7 @@ public class AnalyzeDiffs {
             JsonObject repoObj = pr.getAsJsonObject("repository");
             String repoName = repoObj.get("nameWithOwner").getAsString();
 
+            debug("Analyzing PR #" + prNumber + " in " + repoName);
             try {
                 String diffContent = analyzePRDiff(repoName, prNumber);
                 if (diffContent != null) {
@@ -137,10 +150,12 @@ public class AnalyzeDiffs {
                     totalSummary.files.addAll(prSummary.files);
                 }
             } catch (Exception e) {
+                debug("Error analyzing PR #" + prNumber + ": " + e.getMessage());
                 System.err.println("Warning: Could not analyze diff for PR #" + prNumber + ": " + e.getMessage());
             }
         }
 
+        debug("Total diff summary: " + totalSummary.filesChanged + " files, +" + totalSummary.totalAdditions + "/-" + totalSummary.totalDeletions);
         return totalSummary;
     }
 
@@ -167,15 +182,29 @@ public class AnalyzeDiffs {
 
     public static void main(String... args) {
         try {
-            if (args.length < 1) {
-                System.err.println("Usage: jbang AnalyzeDiffs.java <activity-json>");
+            // Parse --debug flag from any position
+            List<String> positionalArgs = new ArrayList<>();
+            for (String arg : args) {
+                if (arg.equals("--debug") || arg.equals("-D")) {
+                    DEBUG = true;
+                } else {
+                    positionalArgs.add(arg);
+                }
+            }
+
+            debug("Debug mode enabled");
+
+            if (positionalArgs.size() < 1) {
+                System.err.println("Usage: jbang AnalyzeDiffs.java <activity-json> [--debug]");
                 System.exit(1);
             }
 
-            String activityJson = args[0];
+            String activityJson = positionalArgs.get(0);
+            debug("Activity JSON length: " + activityJson.length() + " chars");
             JsonObject activity = JsonParser.parseString(activityJson).getAsJsonObject();
 
             JsonArray prs = activity.getAsJsonArray("pull_requests");
+            debug("Found " + prs.size() + " PRs to analyze");
             DiffSummary summary = analyzePRDiffs(prs);
 
             System.out.println(formatDiffSummary(summary));

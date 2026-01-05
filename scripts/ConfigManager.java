@@ -21,6 +21,7 @@ public class ConfigManager {
         String version = "1.0";
         List<Directory> directories = new ArrayList<>();
         ReportSettings reportSettings = new ReportSettings();
+        DebugSettings debugSettings = new DebugSettings();
     }
 
     static class Directory {
@@ -36,6 +37,15 @@ public class ConfigManager {
         int defaultDays = 1;
         boolean autoSaveReports = true;
         String reportDirectory = "~/.claude-gh-standup/reports";
+    }
+
+    static class DebugSettings {
+        boolean enabled = false;
+        String logDirectory = "~/.claude-gh-standup/debug";
+        int maxSessions = 10;
+        boolean captureScriptOutput = true;
+        boolean verboseGitCommands = true;
+        boolean verboseGitHubAPICalls = true;
     }
 
     public static void main(String... args) {

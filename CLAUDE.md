@@ -250,6 +250,8 @@ case "-d":
 - `--output, -o` - Output file path
 - `--team` - List of team members (no short form)
 - `--no-claude` - Skip Claude AI (output raw prompt)
+- `--debug, -D` - Enable verbose debug logging (prints to stderr + saves to `~/.claude-gh-standup/debug/`)
+- `--debug-override` - Use fixed debug filenames (overwrite previous, no timestamps)
 - `--help, -h` - Show help message
 
 ## Testing Strategy
@@ -621,6 +623,78 @@ gh pr create --title "feat: Description" --body "Closes #42"
 - Verify authentication: `claude --version`
 - Check quota/rate limits in Claude Code
 - Test prompt mode: `echo "Test prompt" | claude -p`
+
+### Debugging workflow issues
+Use the `--debug` flag to see detailed logging:
+```bash
+/claude-gh-standup --debug --days 3
+```
+
+Debug output includes:
+- Parsed arguments and mode detection
+- Config loading status
+- Script invocations with timing
+- GitHub API commands being executed
+- Number of results from each API call
+- Claude prompt size
+
+**Debug files are saved to `~/.claude-gh-standup/debug/`:**
+```
+~/.claude-gh-standup/debug/
+├── 2026-01-05-14-30-00-session.log      # Main session log with all debug messages
+├── 2026-01-05-14-30-00-CollectActivity.md
+├── 2026-01-05-14-30-00-AnalyzeDiffs.md
+├── 2026-01-05-14-30-00-ActivityAggregator.md
+└── 2026-01-05-14-30-00-LocalChangesDetector-myapp.md
+```
+
+Each script log contains:
+- Arguments, timestamp, duration, exit code
+- Full stdout (JSON output)
+- Full stderr (debug messages)
+
+Use `--debug-override` for fixed filenames (overwrites previous logs):
+```bash
+/claude-gh-standup --debug --debug-override --days 3
+```
+
+**Persistent debug settings in config.json:**
+
+Add a `debugSettings` section to `~/.claude-gh-standup/config.json` to enable debug mode by default:
+```json
+{
+  "debugSettings": {
+    "enabled": false,
+    "logDirectory": "~/.claude-gh-standup/debug",
+    "maxSessions": 10,
+    "captureScriptOutput": true,
+    "verboseGitCommands": true,
+    "verboseGitHubAPICalls": true
+  }
+}
+```
+
+| Setting | Description |
+|---------|-------------|
+| `enabled` | Enable debug mode by default (CLI `--debug` overrides) |
+| `logDirectory` | Where debug logs are saved |
+| `maxSessions` | Number of debug sessions to keep (auto-cleanup older) |
+| `captureScriptOutput` | Save stdout/stderr from each script to markdown files |
+| `verboseGitCommands` | Log git commands being executed |
+| `verboseGitHubAPICalls` | Log GitHub API commands being executed |
+
+Example console debug output:
+```
+[DEBUG] Main: Debug mode enabled
+[DEBUG] Main: Debug session initialized: 2026-01-05-14-30-00
+[DEBUG] Main: Parsed arguments: days=3, user=octocat, repo=null
+[DEBUG] Main: Mode detection: single-directory
+[DEBUG] Main: Calling CollectActivity with args: [octocat, 3]
+[DEBUG] CollectActivity: Executing: gh search prs --author=octocat...
+[DEBUG] CollectActivity: Found 5 pull requests
+[DEBUG] Main: Activity JSON received, length: 12345 chars
+[DEBUG] Main: Saved script log to: 2026-01-05-14-30-00-CollectActivity.md
+```
 
 ---
 

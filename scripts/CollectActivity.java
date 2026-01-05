@@ -20,11 +20,18 @@ import java.io.File;
 /**
  * CollectActivity - Collects GitHub activity using gh CLI
  *
- * Usage: jbang CollectActivity.java <username> <days> [repo]
+ * Usage: jbang CollectActivity.java <username> <days> [repo] [--debug]
  */
 public class CollectActivity {
 
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    private static boolean DEBUG = false;
+
+    private static void debug(String message) {
+        if (DEBUG) {
+            System.err.println("[DEBUG] CollectActivity: " + message);
+        }
+    }
 
     public static String getCurrentRepository() {
         try {
@@ -87,6 +94,7 @@ public class CollectActivity {
         command.add("--limit");
         command.add("1000");
 
+        debug("Executing: " + String.join(" ", command));
         ProcessBuilder pb = new ProcessBuilder(command);
         Process process = pb.start();
 
@@ -100,11 +108,15 @@ public class CollectActivity {
 
         int exitCode = process.waitFor();
         if (exitCode != 0) {
+            debug("Commit search failed with exit code: " + exitCode);
             System.err.println("Warning: Commit search failed (this is common due to GitHub restrictions)");
             return "[]";
         }
 
-        return output.toString().trim();
+        String result = output.toString().trim();
+        JsonArray commits = JsonParser.parseString(result).getAsJsonArray();
+        debug("Found " + commits.size() + " commits");
+        return result;
     }
 
     public static String getUserPRs(String username, int days, String repo) throws IOException, InterruptedException {
@@ -127,6 +139,7 @@ public class CollectActivity {
             command.add(repo);
         }
 
+        debug("Executing: " + String.join(" ", command));
         ProcessBuilder pb = new ProcessBuilder(command);
         Process process = pb.start();
 
@@ -140,11 +153,15 @@ public class CollectActivity {
 
         int exitCode = process.waitFor();
         if (exitCode != 0) {
+            debug("PR search failed with exit code: " + exitCode);
             System.err.println("Warning: PR search failed");
             return "[]";
         }
 
-        return output.toString().trim();
+        String result = output.toString().trim();
+        JsonArray prs = JsonParser.parseString(result).getAsJsonArray();
+        debug("Found " + prs.size() + " pull requests");
+        return result;
     }
 
     public static String getUserIssues(String username, int days, String repo) throws IOException, InterruptedException {
@@ -167,6 +184,7 @@ public class CollectActivity {
             command.add(repo);
         }
 
+        debug("Executing: " + String.join(" ", command));
         ProcessBuilder pb = new ProcessBuilder(command);
         Process process = pb.start();
 
@@ -180,26 +198,33 @@ public class CollectActivity {
 
         int exitCode = process.waitFor();
         if (exitCode != 0) {
+            debug("Issue search failed with exit code: " + exitCode);
             System.err.println("Warning: Issue search failed");
             return "[]";
         }
 
-        return output.toString().trim();
+        String result = output.toString().trim();
+        JsonArray issues = JsonParser.parseString(result).getAsJsonArray();
+        debug("Found " + issues.size() + " issues");
+        return result;
     }
 
     public static JsonObject collectAllActivity(String username, int days, String repo) throws IOException, InterruptedException {
         JsonObject result = new JsonObject();
 
+        debug("Collecting commits for " + username + " (last " + days + " days)");
         // Collect commits
         String commitsJson = getUserCommits(username, days);
         JsonArray commits = JsonParser.parseString(commitsJson).getAsJsonArray();
         result.add("commits", commits);
 
+        debug("Collecting PRs for " + username);
         // Collect PRs
         String prsJson = getUserPRs(username, days, repo);
         JsonArray prs = JsonParser.parseString(prsJson).getAsJsonArray();
         result.add("pull_requests", prs);
 
+        debug("Collecting issues for " + username);
         // Collect issues
         String issuesJson = getUserIssues(username, days, repo);
         JsonArray issues = JsonParser.parseString(issuesJson).getAsJsonArray();
@@ -212,26 +237,46 @@ public class CollectActivity {
             result.addProperty("repository", repo);
         }
 
+        debug("Total activity: " + commits.size() + " commits, " + prs.size() + " PRs, " + issues.size() + " issues");
         return result;
     }
 
     public static void main(String... args) {
         try {
-            if (args.length < 2) {
-                System.err.println("Usage: jbang CollectActivity.java <username> <days> [repo]");
+            // Parse --debug flag from any position
+            List<String> positionalArgs = new ArrayList<>();
+            for (String arg : args) {
+                if (arg.equals("--debug") || arg.equals("-D")) {
+                    DEBUG = true;
+                } else {
+                    positionalArgs.add(arg);
+                }
+            }
+
+            debug("Debug mode enabled");
+            debug("Positional args: " + positionalArgs);
+
+            if (positionalArgs.size() < 2) {
+                System.err.println("Usage: jbang CollectActivity.java <username> <days> [repo] [--debug]");
                 System.exit(1);
             }
 
-            String username = args[0];
-            int days = Integer.parseInt(args[1]);
-            String repo = args.length > 2 ? args[2] : null;
+            String username = positionalArgs.get(0);
+            int days = Integer.parseInt(positionalArgs.get(1));
+            String repo = positionalArgs.size() > 2 ? positionalArgs.get(2) : null;
+
+            debug("username=" + username + ", days=" + days + ", repo=" + repo);
 
             // Auto-detect repository if not specified
             if (repo == null) {
+                debug("No repo specified, attempting auto-detection");
                 String detectedRepo = getCurrentRepository();
                 if (detectedRepo != null) {
                     repo = detectedRepo;
+                    debug("Repository auto-detected: " + detectedRepo);
                     System.err.println("Detected current repository: " + detectedRepo);
+                } else {
+                    debug("Repository auto-detection failed");
                 }
             }
 
