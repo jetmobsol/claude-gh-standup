@@ -6,6 +6,40 @@ set -e
 INSTALL_DIR="$HOME/.claude-gh-standup"
 COMMAND_LINK="$HOME/.claude/commands/claude-gh-standup.md"
 
+# Helper: Check if we're in the actual claude-gh-standup repository
+is_claude_gh_standup_repo() {
+    [ -d ".git" ] && \
+    git remote get-url origin 2>/dev/null | grep -qE "jetmobsol/claude-gh-standup(\.git)?$"
+}
+
+# Helper: Check if running interactively (not via curl|bash)
+is_interactive() {
+    [ -t 0 ]  # stdin is a terminal, not a pipe
+}
+
+# Helper: Prompt user with default for non-interactive mode
+# Usage: prompt_yn "message" "default" -> sets REPLY
+prompt_yn() {
+    local message="$1"
+    local default="${2:-n}"
+
+    if is_interactive; then
+        read -p "$message " -n 1 -r </dev/tty
+        echo
+    else
+        echo "$message [non-interactive: $default]"
+        REPLY="$default"
+    fi
+}
+
+# Helper: Validate source directory has required files
+validate_source() {
+    local dir="$1"
+    [ -f "$dir/scripts/Main.java" ] && \
+    [ -d "$dir/prompts" ] && \
+    [ -d "$dir/.claude/commands" ]
+}
+
 echo "Installing claude-gh-standup..."
 echo ""
 
@@ -29,29 +63,45 @@ echo "✓ Prerequisites satisfied"
 echo ""
 
 # 2. Determine installation source
-if [ -d ".git" ]; then
-    # Running from cloned repo
+# IMPORTANT: Only use current directory if we're BOTH interactive AND in the actual repo
+# This prevents curl|bash from copying random directories
+if is_interactive && is_claude_gh_standup_repo; then
+    # Running interactively from the cloned claude-gh-standup repo
     SOURCE_DIR="$(pwd)"
     echo "Installing from current directory: $SOURCE_DIR"
 else
-    # Need to clone
-    echo "Cloning repository..."
+    # Running via curl|bash OR not in the right repo - always clone fresh
+    if ! is_interactive; then
+        echo "Detected non-interactive mode (curl|bash) - cloning fresh copy..."
+    else
+        echo "Not in claude-gh-standup repo - cloning..."
+    fi
     TEMP_DIR=$(mktemp -d)
-    git clone https://github.com/jetmobsol/claude-gh-standup.git "$TEMP_DIR"
+    git clone --depth 1 https://github.com/jetmobsol/claude-gh-standup.git "$TEMP_DIR"
     SOURCE_DIR="$TEMP_DIR"
 fi
+
+# Validate source directory has expected structure
+if ! validate_source "$SOURCE_DIR"; then
+    echo "❌ Error: Invalid source directory - missing required files"
+    echo "   Expected: scripts/Main.java, prompts/, .claude/commands/"
+    echo "   This doesn't look like the claude-gh-standup repository"
+    [ -n "$TEMP_DIR" ] && rm -rf "$TEMP_DIR"
+    exit 1
+fi
+echo "✓ Source validated"
 
 # 3. Install to fixed location
 if [ -d "$INSTALL_DIR" ]; then
     echo "Existing installation found at $INSTALL_DIR"
-    read -p "Update existing installation? (y/n) " -n 1 -r
-    echo
+    prompt_yn "Update existing installation? (y/n)" "y"
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo "Updating installation..."
         rsync -av --exclude='.git' --exclude='config.json' "$SOURCE_DIR/" "$INSTALL_DIR/"
         echo "✓ Updated successfully!"
     else
         echo "Installation cancelled"
+        [ -n "$TEMP_DIR" ] && rm -rf "$TEMP_DIR"
         exit 0
     fi
 else
@@ -85,8 +135,7 @@ echo "  • standup-yesterday - Quick yesterday report (Friday if Monday)"
 echo "  • standup-week      - Last week's activity"
 echo "  • standup           - General command with all flags"
 echo ""
-read -p "Install shell aliases? (y/n) " -n 1 -r
-echo
+prompt_yn "Install shell aliases? (y/n)" "y"
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     # Detect shell from $SHELL environment variable
@@ -119,8 +168,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     # If config file doesn't exist but we know which shell, offer to create it
     if [ -n "$SHELL_RC" ] && [ ! -f "$SHELL_RC" ]; then
         echo "Shell config file $SHELL_RC doesn't exist yet."
-        read -p "Create it and add aliases? (y/n) " -n 1 -r
-        echo
+        prompt_yn "Create it and add aliases? (y/n)" "y"
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             mkdir -p "$(dirname "$SHELL_RC")"
             touch "$SHELL_RC"
@@ -190,8 +238,7 @@ echo "════════════════════════�
 echo "Configuration Setup"
 echo "═══════════════════════════════════════════════"
 echo ""
-read -p "Initialize configuration file now? (y/n) " -n 1 -r
-echo
+prompt_yn "Initialize configuration file now? (y/n)" "y"
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     jbang "$INSTALL_DIR/scripts/Main.java" --config-init
     echo "✓ Config initialized at ~/.claude-gh-standup/config.json"
