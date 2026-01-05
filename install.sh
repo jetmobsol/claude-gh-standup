@@ -5,11 +5,21 @@ set -e
 
 INSTALL_DIR="$HOME/.claude-gh-standup"
 COMMAND_LINK="$HOME/.claude/commands/claude-gh-standup.md"
+TEMP_DIR=""
+
+# Cleanup function - ensures temp directory is removed on any exit
+cleanup() {
+    if [ -n "$TEMP_DIR" ] && [ -d "$TEMP_DIR" ]; then
+        rm -rf "$TEMP_DIR"
+    fi
+}
+trap cleanup EXIT
 
 # Helper: Check if we're in the actual claude-gh-standup repository
+# Handles both HTTPS (/) and SSH (:) URL formats
 is_claude_gh_standup_repo() {
     [ -d ".git" ] && \
-    git remote get-url origin 2>/dev/null | grep -qE "jetmobsol/claude-gh-standup(\.git)?$"
+    git remote get-url origin 2>/dev/null | grep -qE "[:/]jetmobsol/claude-gh-standup(\.git)?/?$"
 }
 
 # Helper: Check if running interactively (not via curl|bash)
@@ -77,7 +87,18 @@ else
         echo "Not in claude-gh-standup repo - cloning..."
     fi
     TEMP_DIR=$(mktemp -d)
-    git clone --depth 1 https://github.com/jetmobsol/claude-gh-standup.git "$TEMP_DIR"
+    if ! git clone --depth 1 https://github.com/jetmobsol/claude-gh-standup.git "$TEMP_DIR"; then
+        echo "❌ Error: Failed to clone repository"
+        echo "   URL: https://github.com/jetmobsol/claude-gh-standup.git"
+        echo ""
+        echo "   Possible causes:"
+        echo "   - No internet connection"
+        echo "   - GitHub is unreachable"
+        echo "   - Repository URL has changed"
+        echo ""
+        echo "   Try: git clone https://github.com/jetmobsol/claude-gh-standup.git manually"
+        exit 1
+    fi
     SOURCE_DIR="$TEMP_DIR"
 fi
 
@@ -86,7 +107,6 @@ if ! validate_source "$SOURCE_DIR"; then
     echo "❌ Error: Invalid source directory - missing required files"
     echo "   Expected: scripts/Main.java, prompts/, .claude/commands/"
     echo "   This doesn't look like the claude-gh-standup repository"
-    [ -n "$TEMP_DIR" ] && rm -rf "$TEMP_DIR"
     exit 1
 fi
 echo "✓ Source validated"
@@ -97,32 +117,58 @@ if [ -d "$INSTALL_DIR" ]; then
     prompt_yn "Update existing installation? (y/n)" "y"
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo "Updating installation..."
-        rsync -av --exclude='.git' --exclude='config.json' "$SOURCE_DIR/" "$INSTALL_DIR/"
+        if ! rsync -av --exclude='.git' --exclude='config.json' "$SOURCE_DIR/" "$INSTALL_DIR/"; then
+            echo "❌ Error: Failed to copy files to $INSTALL_DIR"
+            echo "   Check disk space and permissions"
+            exit 1
+        fi
         echo "✓ Updated successfully!"
     else
         echo "Installation cancelled"
-        [ -n "$TEMP_DIR" ] && rm -rf "$TEMP_DIR"
         exit 0
     fi
 else
     echo "Installing to $INSTALL_DIR..."
     mkdir -p "$INSTALL_DIR"
-    rsync -av --exclude='.git' "$SOURCE_DIR/" "$INSTALL_DIR/"
+    if ! rsync -av --exclude='.git' "$SOURCE_DIR/" "$INSTALL_DIR/"; then
+        echo "❌ Error: Failed to copy files to $INSTALL_DIR"
+        echo "   Check disk space and permissions"
+        exit 1
+    fi
     echo "✓ Installed to $INSTALL_DIR"
 fi
 
 # 4. Create symlink for Claude Code
+COMMAND_SOURCE="$INSTALL_DIR/.claude/commands/claude-gh-standup.md"
+
+# Verify target exists before creating symlink
+if [ ! -f "$COMMAND_SOURCE" ]; then
+    echo "❌ Error: Command file not found at $COMMAND_SOURCE"
+    echo "   Installation may be incomplete"
+    exit 1
+fi
+
 echo ""
 echo "Creating symlink for Claude Code slash command..."
 mkdir -p "$HOME/.claude/commands"
 if [ -L "$COMMAND_LINK" ] || [ -e "$COMMAND_LINK" ]; then
-    rm -rf "$COMMAND_LINK"
+    if ! rm -f "$COMMAND_LINK"; then
+        echo "❌ Error: Could not remove existing $COMMAND_LINK"
+        exit 1
+    fi
 fi
-ln -s "$INSTALL_DIR/.claude/commands/claude-gh-standup.md" "$COMMAND_LINK"
+if ! ln -s "$COMMAND_SOURCE" "$COMMAND_LINK"; then
+    echo "❌ Error: Could not create symlink at $COMMAND_LINK"
+    echo "   Try manually: ln -s $COMMAND_SOURCE $COMMAND_LINK"
+    exit 1
+fi
 echo "✓ Symlink created: $COMMAND_LINK → command file"
 
 # 5. Make scripts executable
-chmod +x "$INSTALL_DIR/scripts"/*.java 2>/dev/null || true
+if ! chmod +x "$INSTALL_DIR/scripts"/*.java 2>/dev/null; then
+    echo "⚠ Warning: Could not make scripts executable"
+    echo "   You may need to run: chmod +x ~/.claude-gh-standup/scripts/*.java"
+fi
 
 # 6. Offer to install shell aliases
 echo ""
@@ -240,16 +286,16 @@ echo "════════════════════════�
 echo ""
 prompt_yn "Initialize configuration file now? (y/n)" "y"
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    jbang "$INSTALL_DIR/scripts/Main.java" --config-init
-    echo "✓ Config initialized at ~/.claude-gh-standup/config.json"
-fi
-
-# Clean up temp directory if used
-if [ -n "$TEMP_DIR" ] && [ -d "$TEMP_DIR" ]; then
-    rm -rf "$TEMP_DIR"
+    if jbang "$INSTALL_DIR/scripts/Main.java" --config-init; then
+        echo "✓ Config initialized at ~/.claude-gh-standup/config.json"
+    else
+        echo "⚠ Warning: Config initialization failed"
+        echo "   You can initialize later with: standup --config-init"
+    fi
 fi
 
 # 8. Success summary
+# Note: TEMP_DIR cleanup handled by trap EXIT
 echo ""
 echo "═══════════════════════════════════════════════"
 echo "✓ Installation Complete!"
