@@ -19,6 +19,7 @@ import java.nio.file.Paths;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -34,6 +35,179 @@ public class Main {
 
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
+    // Debug flag - static so it can be accessed from all methods
+    private static boolean DEBUG = false;
+    private static boolean DEBUG_OVERRIDE = false;
+    private static String DEBUG_SESSION_ID = null;
+    private static Path DEBUG_DIR = null;
+    private static int MAX_DEBUG_SESSIONS = 10;  // Can be overridden by config
+    private static String DEBUG_LOG_DIRECTORY = "~/.claude-gh-standup/debug";  // Can be overridden by config
+    private static boolean CAPTURE_SCRIPT_OUTPUT = true;  // From config
+    private static boolean VERBOSE_GIT_COMMANDS = true;   // From config
+    private static boolean VERBOSE_GITHUB_API = true;     // From config
+
+    /**
+     * Initialize debug session - creates debug directory and session log
+     */
+    private static void initDebugSession() {
+        if (!DEBUG) return;
+
+        try {
+            DEBUG_DIR = Paths.get(expandTilde(DEBUG_LOG_DIRECTORY));
+            Files.createDirectories(DEBUG_DIR);
+
+            // Generate session ID
+            if (DEBUG_OVERRIDE) {
+                DEBUG_SESSION_ID = "debug";
+            } else {
+                DEBUG_SESSION_ID = java.time.LocalDateTime.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss"));
+            }
+
+            // Clean up old sessions (keep last MAX_DEBUG_SESSIONS)
+            if (!DEBUG_OVERRIDE) {
+                cleanupOldDebugSessions();
+            }
+
+            // Create session log header
+            String sessionLogPath = DEBUG_DIR + "/" + DEBUG_SESSION_ID + "-session.log";
+            String header = "# Debug Session: " + DEBUG_SESSION_ID + "\n" +
+                           "**Started:** " + java.time.LocalDateTime.now() + "\n" +
+                           "**Working Directory:** " + System.getProperty("user.dir") + "\n\n" +
+                           "## Debug Log\n\n";
+            Files.writeString(Paths.get(sessionLogPath), header);
+
+            debug("Debug session initialized: " + DEBUG_SESSION_ID);
+            debug("Debug files will be saved to: " + DEBUG_DIR);
+        } catch (IOException e) {
+            System.err.println("Warning: Could not initialize debug session: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Clean up old debug sessions, keeping only the most recent MAX_DEBUG_SESSIONS
+     */
+    private static void cleanupOldDebugSessions() {
+        try {
+            List<Path> sessionLogs = Files.list(DEBUG_DIR)
+                .filter(p -> p.getFileName().toString().endsWith("-session.log"))
+                .sorted((a, b) -> b.getFileName().toString().compareTo(a.getFileName().toString()))
+                .collect(java.util.stream.Collectors.toList());
+
+            if (sessionLogs.size() >= MAX_DEBUG_SESSIONS) {
+                // Get sessions to delete (all except most recent MAX_DEBUG_SESSIONS - 1)
+                for (int i = MAX_DEBUG_SESSIONS - 1; i < sessionLogs.size(); i++) {
+                    String sessionId = sessionLogs.get(i).getFileName().toString().replace("-session.log", "");
+                    // Delete all files for this session
+                    Files.list(DEBUG_DIR)
+                        .filter(p -> p.getFileName().toString().startsWith(sessionId))
+                        .forEach(p -> {
+                            try {
+                                Files.delete(p);
+                                debug("Cleaned up old debug file: " + p.getFileName());
+                            } catch (IOException e) {
+                                // Ignore cleanup errors
+                            }
+                        });
+                }
+            }
+        } catch (IOException e) {
+            // Ignore cleanup errors
+        }
+    }
+
+    /**
+     * Conditional debug logging - prints to stderr and optionally saves to file
+     */
+    private static void debug(String message) {
+        if (DEBUG) {
+            String timestamp = java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss.SSS"));
+            String logLine = "[DEBUG] Main: " + message;
+            System.err.println(logLine);
+
+            // Also write to session log file
+            if (DEBUG_DIR != null && DEBUG_SESSION_ID != null) {
+                try {
+                    String sessionLogPath = DEBUG_DIR + "/" + DEBUG_SESSION_ID + "-session.log";
+                    Files.writeString(Paths.get(sessionLogPath),
+                        timestamp + " " + logLine + "\n",
+                        java.nio.file.StandardOpenOption.APPEND);
+                } catch (IOException e) {
+                    // Ignore file write errors
+                }
+            }
+        }
+    }
+
+    /**
+     * Save script execution details to a markdown file
+     */
+    private static void saveScriptDebugLog(String scriptName, List<String> args,
+                                            String stdout, String stderr,
+                                            int exitCode, long durationMs,
+                                            String directorySuffix) {
+        if (!DEBUG || !CAPTURE_SCRIPT_OUTPUT || DEBUG_DIR == null || DEBUG_SESSION_ID == null) return;
+
+        try {
+            String suffix = directorySuffix != null ? "-" + directorySuffix : "";
+            String filename = DEBUG_SESSION_ID + "-" + scriptName.replace(".java", "") + suffix + ".md";
+            Path filePath = DEBUG_DIR.resolve(filename);
+
+            StringBuilder content = new StringBuilder();
+            content.append("# Script Execution: ").append(scriptName).append("\n\n");
+            content.append("**Session ID:** ").append(DEBUG_SESSION_ID).append("\n");
+            content.append("**Arguments:** ").append(String.join(" ", args)).append("\n");
+            content.append("**Timestamp:** ").append(java.time.LocalDateTime.now()).append("\n");
+            content.append("**Duration:** ").append(durationMs).append("ms\n");
+            content.append("**Exit Code:** ").append(exitCode).append("\n\n");
+
+            content.append("## Standard Output\n\n```json\n");
+            content.append(stdout.length() > 10000 ? stdout.substring(0, 10000) + "\n... (truncated)" : stdout);
+            content.append("\n```\n\n");
+
+            if (stderr != null && !stderr.isEmpty()) {
+                content.append("## Standard Error\n\n```\n");
+                content.append(stderr.length() > 5000 ? stderr.substring(0, 5000) + "\n... (truncated)" : stderr);
+                content.append("\n```\n");
+            }
+
+            Files.writeString(filePath, content.toString());
+            debug("Saved script log to: " + filename);
+        } catch (IOException e) {
+            debug("Warning: Could not save script debug log: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Apply debug settings from config.json - called before CLI args override
+     */
+    private static void applyDebugSettings(JsonObject config) {
+        if (config == null || !config.has("debugSettings")) return;
+
+        JsonObject debugSettings = config.getAsJsonObject("debugSettings");
+
+        // Apply config settings (CLI args will override these later)
+        if (debugSettings.has("enabled") && debugSettings.get("enabled").getAsBoolean()) {
+            DEBUG = true;
+        }
+        if (debugSettings.has("logDirectory")) {
+            DEBUG_LOG_DIRECTORY = debugSettings.get("logDirectory").getAsString();
+        }
+        if (debugSettings.has("maxSessions")) {
+            MAX_DEBUG_SESSIONS = debugSettings.get("maxSessions").getAsInt();
+        }
+        if (debugSettings.has("captureScriptOutput")) {
+            CAPTURE_SCRIPT_OUTPUT = debugSettings.get("captureScriptOutput").getAsBoolean();
+        }
+        if (debugSettings.has("verboseGitCommands")) {
+            VERBOSE_GIT_COMMANDS = debugSettings.get("verboseGitCommands").getAsBoolean();
+        }
+        if (debugSettings.has("verboseGitHubAPICalls")) {
+            VERBOSE_GITHUB_API = debugSettings.get("verboseGitHubAPICalls").getAsBoolean();
+        }
+    }
+
     static class Args {
         int days = 1;
         String user = null;
@@ -42,6 +216,8 @@ public class Main {
         List<String> team = null;
         String output = null;
         boolean noClaude = false;
+        boolean debug = false;
+        boolean debugOverride = false;
 
         // Date shortcuts
         boolean yesterday = false;
@@ -131,6 +307,13 @@ public class Main {
                 case "--id":
                     // Handled inline with --config-add
                     break;
+                case "--debug":
+                case "-D":
+                    parsed.debug = true;
+                    break;
+                case "--debug-override":
+                    parsed.debugOverride = true;
+                    break;
                 case "--help":
                 case "-h":
                     printHelp();
@@ -155,6 +338,8 @@ public class Main {
         System.out.println("  --team USERS...     Generate team report for multiple users");
         System.out.println("  --output, -o FILE   Write to file instead of stdout");
         System.out.println("  --no-claude         Skip claude -p call and output prompt directly");
+        System.out.println("  --debug, -D         Enable verbose debug logging (saves to ~/.claude-gh-standup/debug/)");
+        System.out.println("  --debug-override    Use fixed debug filenames (overwrite previous, no timestamps)");
         System.out.println("  --help, -h          Show this help message");
         System.out.println();
         System.out.println("Date Shortcuts:");
@@ -284,7 +469,11 @@ public class Main {
                 JsonObject repo = commit.getAsJsonObject("repository");
 
                 if (repo == null || repo.get("nameWithOwner") == null) {
-                    System.err.println("⚠️ Skipping commit without repository info");
+                    String sha = commit.has("sha") ? commit.get("sha").getAsString().substring(0, 7) : "unknown";
+                    String msg = commitData != null && commitData.has("message")
+                        ? commitData.get("message").getAsString().split("\n")[0]
+                        : "unknown";
+                    System.err.println("⚠️ Skipping commit without repository info: " + sha + " - " + msg);
                     continue;
                 }
 
@@ -401,10 +590,15 @@ public class Main {
     }
 
     public static String runScript(String scriptName, List<String> scriptArgs) throws Exception {
-        System.err.println("[DEBUG] runScript called for: " + scriptName);
-        System.err.println("[DEBUG] Number of args: " + scriptArgs.size());
+        return runScript(scriptName, scriptArgs, null);
+    }
+
+    public static String runScript(String scriptName, List<String> scriptArgs, String directorySuffix) throws Exception {
+        long startTime = System.currentTimeMillis();
+        debug("runScript called for: " + scriptName);
+        debug("Number of args: " + scriptArgs.size());
         for (int i = 0; i < scriptArgs.size(); i++) {
-            System.err.println("[DEBUG] Arg " + i + " length: " + scriptArgs.get(i).length());
+            debug("Arg " + i + " length: " + scriptArgs.get(i).length());
         }
 
         // Determine the installation directory (where Main.java is located)
@@ -419,19 +613,24 @@ public class Main {
                 scriptPath = Paths.get(scriptName);
             }
         }
-        System.err.println("[DEBUG] Script path: " + scriptPath);
+        debug("Script path: " + scriptPath);
 
         List<String> command = new ArrayList<>();
         command.add("jbang");
         command.add(scriptPath.toString());
         command.addAll(scriptArgs);
+        // Pass debug flag to subprocess if enabled
+        if (DEBUG) {
+            command.add("--debug");
+        }
 
-        System.err.println("[DEBUG] Creating ProcessBuilder...");
+        debug("Command: " + String.join(" ", command));
         ProcessBuilder pb = new ProcessBuilder(command);
-        System.err.println("[DEBUG] Starting process...");
+        debug("Starting process...");
         Process process = pb.start();
-        System.err.println("[DEBUG] Process started, reading stdout...");
+        debug("Process started, reading stdout...");
 
+        // Capture stdout
         StringBuilder output = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
@@ -439,25 +638,35 @@ public class Main {
                 output.append(line).append("\n");
             }
         }
-        System.err.println("[DEBUG] Finished reading stdout, waiting for exit...");
+
+        // Capture stderr
+        StringBuilder stderrOutput = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                stderrOutput.append(line).append("\n");
+                // Also print to stderr in real-time for user visibility
+                System.err.println(line);
+            }
+        }
+
+        debug("Finished reading stdout/stderr, waiting for exit...");
 
         int exitCode = process.waitFor();
-        System.err.println("[DEBUG] Process exited with code: " + exitCode);
+        long elapsed = System.currentTimeMillis() - startTime;
+        debug("Process exited with code: " + exitCode + " (elapsed: " + elapsed + "ms)");
+
+        // Save debug log for this script execution
+        saveScriptDebugLog(scriptName, scriptArgs, output.toString(), stderrOutput.toString(),
+                          exitCode, elapsed, directorySuffix);
 
         if (exitCode != 0) {
-            StringBuilder error = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    error.append(line).append("\n");
-                }
-            }
             System.err.println("Error running " + scriptName + ":");
-            System.err.println(error.toString());
+            System.err.println(stderrOutput.toString());
             throw new RuntimeException("Script " + scriptName + " failed with exit code " + exitCode);
         }
 
-        System.err.println("[DEBUG] runScript completed for: " + scriptName);
+        debug("runScript completed for: " + scriptName + " in " + elapsed + "ms");
         return output.toString();
     }
 
@@ -506,47 +715,65 @@ public class Main {
     }
 
     private static void runMultiDirectoryMode(JsonObject config, Args parsed) throws Exception {
+        debug("Entering multi-directory mode");
         System.err.println("Running in multi-directory mode...");
 
         // Calculate effective days
         int days = calculateDays(parsed);
+        debug("Effective days: " + days);
 
         // Get user
         String user = parsed.user;
         if (user == null && parsed.team == null) {
+            debug("No --user specified, detecting from gh CLI");
             System.err.println("Detecting current GitHub user...");
             user = getCurrentUser();
+            debug("User detected: " + user);
         }
 
         // Call ActivityAggregator
         System.err.println("Aggregating activities across directories...");
         String configJson = gson.toJson(config);
+        debug("Config JSON length: " + configJson.length() + " chars");
 
         String installDir = System.getProperty("user.home") + "/.claude-gh-standup";
         String aggregatorScript = installDir + "/scripts/ActivityAggregator.java";
         if (!Files.exists(Paths.get(aggregatorScript))) {
             aggregatorScript = "scripts/ActivityAggregator.java";  // Fallback for development
         }
+        debug("ActivityAggregator script: " + aggregatorScript);
 
-        ProcessBuilder pb = new ProcessBuilder(
-            "jbang", aggregatorScript,
-            configJson, user, String.valueOf(days)
-        );
+        List<String> command = new ArrayList<>();
+        command.add("jbang");
+        command.add(aggregatorScript);
+        command.add(configJson);
+        command.add(user);
+        command.add(String.valueOf(days));
+        if (DEBUG) {
+            command.add("--debug");
+        }
+        debug("ActivityAggregator command args: configJson=" + configJson.length() + "chars, user=" + user + ", days=" + days);
+
+        ProcessBuilder pb = new ProcessBuilder(command);
+        long startTime = System.currentTimeMillis();
 
         Process process = pb.start();
         StringBuilder aggregatedJson = new StringBuilder();
+        StringBuilder stderrCapture = new StringBuilder();
 
-        // Capture aggregator stderr
-        new Thread(() -> {
+        // Capture aggregator stderr in a separate thread
+        Thread stderrThread = new Thread(() -> {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
+                    stderrCapture.append(line).append("\n");
                     System.err.println(line);
                 }
             } catch (IOException e) {
                 // Ignore
             }
-        }).start();
+        });
+        stderrThread.start();
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
@@ -556,23 +783,39 @@ public class Main {
         }
 
         int exitCode = process.waitFor();
+        stderrThread.join(1000);  // Wait for stderr thread to finish
+        long elapsed = System.currentTimeMillis() - startTime;
+        debug("ActivityAggregator exited with code: " + exitCode + " (elapsed: " + elapsed + "ms)");
+
+        // Save debug log for ActivityAggregator
+        List<String> aggregatorArgs = Arrays.asList(configJson.length() + " chars", user, String.valueOf(days));
+        saveScriptDebugLog("ActivityAggregator.java", aggregatorArgs,
+                          aggregatedJson.toString(), stderrCapture.toString(),
+                          exitCode, elapsed, null);
+
         if (exitCode != 0) {
             System.err.println("ActivityAggregator failed");
             System.exit(1);
         }
 
         // Parse aggregated data
+        debug("Aggregated JSON length: " + aggregatedJson.length() + " chars");
         JsonObject aggregated = gson.fromJson(aggregatedJson.toString(), JsonObject.class);
 
         // Format multi-dir prompt
+        debug("Formatting multi-directory prompt");
         String prompt = formatMultiDirPrompt(aggregated);
+        debug("Multi-dir prompt length: " + prompt.length() + " chars");
 
         // Generate report
         String report;
         if (parsed.noClaude) {
+            debug("--no-claude flag set, returning prompt directly");
             report = prompt;
         } else {
+            debug("Invoking Claude for report generation");
             report = generateReportWithClaude(prompt);
+            debug("Report generated, length: " + report.length() + " chars");
         }
 
         // Auto-save if enabled
@@ -584,8 +827,11 @@ public class Main {
             }
         }
 
-        // Output to stdout
-        System.out.println(report);
+        // Note: report is already printed in real-time by generateReportWithClaude()
+        // Only print here if --no-claude was used (prompt mode)
+        if (parsed.noClaude) {
+            System.out.println(report);
+        }
     }
 
     private static String formatMultiDirPrompt(JsonObject aggregated) throws IOException {
@@ -736,18 +982,20 @@ public class Main {
         String date = today.toString();  // YYYY-MM-DD format
 
         JsonObject metadata = aggregated.getAsJsonObject("metadata");
-        int repoCount = metadata.get("repoCount").getAsInt();
 
+        // Get configured repos from metadata (added by ActivityAggregator)
         String filename;
-        if (repoCount == 1) {
-            // Single repo: include repo name
-            JsonObject githubActivity = aggregated.getAsJsonObject("githubActivity");
-            String repoName = githubActivity.keySet().iterator().next();
+        if (metadata.has("configuredRepos") && metadata.getAsJsonArray("configuredRepos").size() == 1) {
+            // Single configured repo: include repo name
+            String repoName = metadata.getAsJsonArray("configuredRepos").get(0).getAsString();
             String sanitized = repoName.replace("/", "-");
             filename = date + "-" + sanitized + ".md";
-        } else {
-            // Multiple repos
+        } else if (metadata.has("configuredRepos") && metadata.getAsJsonArray("configuredRepos").size() > 1) {
+            // Multiple configured repos
             filename = date + "-multi.md";
+        } else {
+            // Fallback: all repos
+            filename = date + "-all-repos.md";
         }
 
         Path filepath = Paths.get(reportDir, filename);
@@ -841,15 +1089,48 @@ public class Main {
         try {
             Args parsed = parseArgs(args);
 
+            // Load configuration early to get debugSettings
+            JsonObject config = loadConfigJson();
+
+            // Apply debug settings from config (as defaults)
+            applyDebugSettings(config);
+
+            // CLI args override config settings
+            if (parsed.debug) {
+                DEBUG = true;
+            }
+            if (parsed.debugOverride) {
+                DEBUG_OVERRIDE = true;
+            }
+
+            // Initialize debug session (creates debug directory and session log)
+            initDebugSession();
+
+            debug("Debug mode enabled");
+            debug("Config loaded: " + (config != null ? "found with debugSettings" : "not found"));
+            debug("Debug settings: logDir=" + DEBUG_LOG_DIRECTORY +
+                  ", maxSessions=" + MAX_DEBUG_SESSIONS +
+                  ", captureScriptOutput=" + CAPTURE_SCRIPT_OUTPUT +
+                  ", verboseGit=" + VERBOSE_GIT_COMMANDS +
+                  ", verboseGitHub=" + VERBOSE_GITHUB_API);
+            debug("Parsed arguments: days=" + parsed.days + ", user=" + parsed.user +
+                  ", repo=" + parsed.repo + ", format=" + parsed.format +
+                  ", noClaude=" + parsed.noClaude + ", yesterday=" + parsed.yesterday +
+                  ", lastWeek=" + parsed.lastWeek);
+            if (parsed.team != null) {
+                debug("Team members: " + String.join(", ", parsed.team));
+            }
+
             // Handle config commands first
             if (parsed.configCommand != null) {
+                debug("Handling config command: " + parsed.configCommand);
                 handleConfigCommand(parsed);
                 return;
             }
 
-            // Load configuration and determine mode
-            JsonObject config = loadConfigJson();
+            debug("Mode detection starting...");
             boolean multiDirMode = shouldUseMultiDirectoryMode(config, parsed);
+            debug("Mode detection: " + (multiDirMode ? "multi-directory" : "single-directory"));
 
             if (multiDirMode) {
                 runMultiDirectoryMode(config, parsed);
@@ -859,21 +1140,30 @@ public class Main {
             // Legacy single-directory mode
             // Auto-detect repository if not specified
             if (parsed.repo == null) {
+                debug("No --repo specified, attempting auto-detection");
                 String detectedRepo = getCurrentRepository();
                 if (detectedRepo != null) {
                     parsed.repo = detectedRepo;
+                    debug("Repository auto-detected: " + detectedRepo);
                     System.err.println("Detected current repository: " + detectedRepo);
                 } else {
+                    debug("Repository auto-detection failed (not in git repo or no origin remote)");
                     System.err.println("Warning: Not in a git repository or no GitHub remote found.");
                     System.err.println("Activity will be searched across all repositories.");
                     System.err.println("Use --repo owner/repo to specify a repository.");
                 }
+            } else {
+                debug("Using explicitly specified repo: " + parsed.repo);
             }
 
             // Auto-detect user if not specified
             if (parsed.user == null && parsed.team == null) {
+                debug("No --user specified, detecting from gh CLI");
                 System.err.println("Detecting current GitHub user...");
                 parsed.user = getCurrentUser();
+                debug("User detected: " + parsed.user);
+            } else if (parsed.user != null) {
+                debug("Using explicitly specified user: " + parsed.user);
             }
 
             // Team mode
@@ -914,24 +1204,30 @@ public class Main {
             }
 
             // Single user mode
+            debug("Starting single user mode for: " + parsed.user);
             System.err.println("Collecting activity for " + parsed.user + "...");
 
             // Collect activity
             int days = calculateDays(parsed);
+            debug("Effective days: " + days);
             List<String> activityArgs = new ArrayList<>();
             activityArgs.add(parsed.user);
             activityArgs.add(String.valueOf(days));
             if (parsed.repo != null) {
                 activityArgs.add(parsed.repo);
             }
+            debug("Calling CollectActivity with args: " + activityArgs);
             String activityJson = runScript("CollectActivity.java", activityArgs);
+            debug("Activity JSON received, length: " + activityJson.length() + " chars");
 
             System.err.println("Analyzing file changes...");
 
             // Analyze diffs
             List<String> diffArgs = new ArrayList<>();
             diffArgs.add(activityJson);
+            debug("Calling AnalyzeDiffs");
             String diffSummary = runScript("AnalyzeDiffs.java", diffArgs);
+            debug("Diff summary received, length: " + diffSummary.length() + " chars");
 
             System.err.println("Generating standup report...");
 
@@ -941,22 +1237,29 @@ public class Main {
             if (!Files.exists(promptPath)) {
                 promptPath = Paths.get("prompts/standup.prompt.md");  // Fallback for development
             }
+            debug("Loading prompt template from: " + promptPath);
             String promptTemplate = Files.readString(promptPath);
+            debug("Prompt template loaded, length: " + promptTemplate.length() + " chars");
 
             // Parse and format activities
             JsonObject activity = com.google.gson.JsonParser.parseString(activityJson).getAsJsonObject();
             String formattedActivities = formatActivities(activity);
+            debug("Formatted activities length: " + formattedActivities.length() + " chars");
 
             // Inject data into template
             String fullPrompt = promptTemplate
                     .replace("{{activities}}", formattedActivities)
-                    .replace("{{diffs}}", diffSummary);
+                    .replace("{{diffs}}", diffSummary)
+                    .replace("{{days}}", String.valueOf(days));
+            debug("Full prompt assembled, length: " + fullPrompt.length() + " chars");
 
             // Check if we should skip claude -p (when running inside Claude Code)
             if (parsed.noClaude) {
+                debug("--no-claude flag set, outputting prompt directly");
                 // Output the prompt directly for Claude Code to process
                 System.out.println(fullPrompt);
             } else {
+                debug("Invoking Claude CLI with prompt via stdin");
                 // Call claude -p and pipe prompt via stdin (avoids command-line length limits)
                 ProcessBuilder claudeBuilder = new ProcessBuilder("claude", "-p", "-");
                 Process claudeProcess = claudeBuilder.start();

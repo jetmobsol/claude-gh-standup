@@ -12,11 +12,18 @@ import java.util.stream.Collectors;
 /**
  * ActivityAggregator - Orchestrate multi-directory data collection
  *
- * Usage: jbang ActivityAggregator.java <config-json> <user> <days>
+ * Usage: jbang ActivityAggregator.java <config-json> <user> <days> [--debug]
  */
 public class ActivityAggregator {
 
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    private static boolean DEBUG = false;
+
+    private static void debug(String message) {
+        if (DEBUG) {
+            System.err.println("[DEBUG] ActivityAggregator: " + message);
+        }
+    }
 
     static class Directory {
         String id;
@@ -34,14 +41,30 @@ public class ActivityAggregator {
     }
 
     public static void main(String... args) {
-        if (args.length < 3) {
-            System.err.println("Usage: ActivityAggregator <config-json> <user> <days>");
+        // Parse --debug flag from any position
+        List<String> positionalArgs = new ArrayList<>();
+        for (String arg : args) {
+            if (arg.equals("--debug") || arg.equals("-D")) {
+                DEBUG = true;
+            } else {
+                positionalArgs.add(arg);
+            }
+        }
+
+        debug("Debug mode enabled");
+        debug("Positional args count: " + positionalArgs.size());
+
+        if (positionalArgs.size() < 3) {
+            System.err.println("Usage: ActivityAggregator <config-json> <user> <days> [--debug]");
             System.exit(1);
         }
 
-        String configJson = args[0];
-        String user = args[1];
-        int days = Integer.parseInt(args[2]);
+        String configJson = positionalArgs.get(0);
+        String user = positionalArgs.get(1);
+        int days = Integer.parseInt(positionalArgs.get(2));
+
+        debug("user=" + user + ", days=" + days);
+        debug("Config JSON length: " + configJson.length() + " chars");
 
         try {
             // Parse config
@@ -54,18 +77,23 @@ public class ActivityAggregator {
                 directories.add(dir);
             }
 
+            debug("Loaded " + directories.size() + " directories from config");
+
             // Filter enabled directories
             List<Directory> enabledDirs = directories.stream()
                 .filter(d -> d.enabled)
                 .filter(d -> {
                     String expandedPath = expandTilde(d.path);
                     if (!Files.exists(Paths.get(expandedPath))) {
+                        debug("Directory not found: " + d.path);
                         System.err.println("⚠️  Directory not found: " + d.path + " (skipping)");
                         return false;
                     }
                     return true;
                 })
                 .collect(Collectors.toList());
+
+            debug("Filtered to " + enabledDirs.size() + " enabled directories");
 
             if (enabledDirs.isEmpty()) {
                 System.err.println("❌ No valid directories to process");
@@ -76,7 +104,9 @@ public class ActivityAggregator {
             AggregatedActivity aggregated = aggregateActivities(enabledDirs, user, days);
 
             // Output JSON
-            System.out.println(gson.toJson(aggregated));
+            String outputJson = gson.toJson(aggregated);
+            debug("Output JSON length: " + outputJson.length() + " chars");
+            System.out.println(outputJson);
 
         } catch (Exception e) {
             System.err.println("Error aggregating activities: " + e.getMessage());
@@ -99,14 +129,23 @@ public class ActivityAggregator {
         Map<String, List<Directory>> repoMap = directories.stream()
             .collect(Collectors.groupingBy(d -> d.repoName));
 
+        debug("Grouped into " + repoMap.size() + " unique repositories");
         System.err.println("Processing " + directories.size() + " directories across " + repoMap.size() + " repositories...");
 
         // Collect local changes in parallel
+        debug("Starting local changes collection");
+        long startLocal = System.currentTimeMillis();
         JsonArray localChanges = collectLocalChangesParallel(directories);
+        long localElapsed = System.currentTimeMillis() - startLocal;
+        debug("Local changes collected in " + localElapsed + "ms");
         aggregated.localChanges = localChanges;
 
         // Collect GitHub activity from ALL user repositories (not filtered by config)
+        debug("Starting GitHub activity collection");
+        long startGithub = System.currentTimeMillis();
         JsonObject githubActivity = collectGitHubActivityAllRepos(user, days);
+        long githubElapsed = System.currentTimeMillis() - startGithub;
+        debug("GitHub activity collected in " + githubElapsed + "ms");
         aggregated.githubActivity = githubActivity;
 
         // Add metadata
@@ -122,6 +161,7 @@ public class ActivityAggregator {
         }
         aggregated.metadata.add("configuredRepos", configuredRepos);
 
+        debug("Aggregation complete");
         return aggregated;
     }
 
@@ -130,13 +170,16 @@ public class ActivityAggregator {
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         List<Future<JsonObject>> futures = new ArrayList<>();
 
+        debug("Creating thread pool with " + threadCount + " threads");
         System.err.println("Collecting local changes (parallel with " + threadCount + " threads)...");
 
         for (Directory dir : directories) {
+            debug("Submitting LocalChangesDetector task for: " + dir.id);
             Future<JsonObject> future = executor.submit(() -> {
                 try {
                     return callLocalChangesDetector(dir);
                 } catch (Exception e) {
+                    debug("Failed to collect local changes for " + dir.id + ": " + e.getMessage());
                     System.err.println("⚠️  Failed to collect local changes for " + dir.id + ": " + e.getMessage());
                     // Return empty result on error
                     JsonObject empty = new JsonObject();
@@ -157,11 +200,13 @@ public class ActivityAggregator {
                 JsonObject result = future.get(30, TimeUnit.SECONDS);
                 localChanges.add(result);
             } catch (TimeoutException e) {
+                debug("LocalChangesDetector task timed out");
                 System.err.println("⚠️  Local changes detection timed out (skipping)");
             }
         }
 
         executor.shutdown();
+        debug("Collected local changes from " + localChanges.size() + " directories");
         return localChanges;
     }
 
@@ -169,10 +214,18 @@ public class ActivityAggregator {
         String installDir = System.getProperty("user.home") + "/.claude-gh-standup";
         String scriptPath = installDir + "/scripts/LocalChangesDetector.java";
 
-        ProcessBuilder pb = new ProcessBuilder(
-            "jbang", scriptPath,
-            dir.id, dir.path, dir.branch
-        );
+        List<String> command = new ArrayList<>();
+        command.add("jbang");
+        command.add(scriptPath);
+        command.add(dir.id);
+        command.add(dir.path);
+        command.add(dir.branch);
+        if (DEBUG) {
+            command.add("--debug");
+        }
+
+        debug("Calling LocalChangesDetector for " + dir.id + ": " + dir.path);
+        ProcessBuilder pb = new ProcessBuilder(command);
 
         Process process = pb.start();
         StringBuilder output = new StringBuilder();
@@ -184,7 +237,16 @@ public class ActivityAggregator {
             }
         }
 
+        // Capture and forward stderr
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                System.err.println(line);
+            }
+        }
+
         int exitCode = process.waitFor();
+        debug("LocalChangesDetector for " + dir.id + " exited with code: " + exitCode);
         if (exitCode != 0) {
             throw new RuntimeException("LocalChangesDetector failed for " + dir.id);
         }
@@ -202,8 +264,16 @@ public class ActivityAggregator {
         try {
             // Call CollectActivity with null repo to get ALL user activity
             JsonObject activity = callCollectActivity(user, days, null);
+
+            // Log activity counts
+            int commits = activity.has("commits") ? activity.getAsJsonArray("commits").size() : 0;
+            int prs = activity.has("pull_requests") ? activity.getAsJsonArray("pull_requests").size() : 0;
+            int issues = activity.has("issues") ? activity.getAsJsonArray("issues").size() : 0;
+            debug("GitHub activity: " + commits + " commits, " + prs + " PRs, " + issues + " issues");
+
             return activity;
         } catch (Exception e) {
+            debug("Failed to collect GitHub activity: " + e.getMessage());
             System.err.println("⚠️ Failed to collect GitHub activity: " + e.getMessage());
             // Return empty activity structure on error (graceful degradation)
             JsonObject empty = new JsonObject();
@@ -226,7 +296,11 @@ public class ActivityAggregator {
         if (repo != null) {
             command.add(repo);  // Only add repo arg if specified (null means ALL repos)
         }
+        if (DEBUG) {
+            command.add("--debug");
+        }
 
+        debug("Calling CollectActivity: user=" + user + ", days=" + days + ", repo=" + repo);
         ProcessBuilder pb = new ProcessBuilder(command);
 
         Process process = pb.start();
@@ -245,10 +319,12 @@ public class ActivityAggregator {
             String line;
             while ((line = reader.readLine()) != null) {
                 errors.append(line).append("\n");
+                System.err.println(line);  // Forward to stderr
             }
         }
 
         int exitCode = process.waitFor();
+        debug("CollectActivity exited with code: " + exitCode);
         if (exitCode != 0) {
             System.err.println("CollectActivity stderr: " + errors.toString());
             throw new RuntimeException("CollectActivity failed for " + repo);

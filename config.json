@@ -5,5 +5,13 @@
     "defaultDays": 1,
     "autoSaveReports": true,
     "reportDirectory": "~/.claude-gh-standup/reports"
+  },
+  "debugSettings": {
+    "enabled": false,
+    "logDirectory": "~/.claude-gh-standup/debug",
+    "maxSessions": 10,
+    "captureScriptOutput": true,
+    "verboseGitCommands": true,
+    "verboseGitHubAPICalls": true
   }
 }

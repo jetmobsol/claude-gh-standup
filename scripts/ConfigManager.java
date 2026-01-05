@@ -21,6 +21,7 @@ public class ConfigManager {
         String version = "1.0";
         List<Directory> directories = new ArrayList<>();
         ReportSettings reportSettings = new ReportSettings();
+        DebugSettings debugSettings = new DebugSettings();
     }
 
     static class Directory {
@@ -36,6 +37,15 @@ public class ConfigManager {
         int defaultDays = 1;
         boolean autoSaveReports = true;
         String reportDirectory = "~/.claude-gh-standup/reports";
+    }
+
+    static class DebugSettings {
+        boolean enabled = false;
+        String logDirectory = "~/.claude-gh-standup/debug";
+        int maxSessions = 10;
+        boolean captureScriptOutput = true;
+        boolean verboseGitCommands = true;
+        boolean verboseGitHubAPICalls = true;
     }
 
     public static void main(String... args) {
@@ -137,11 +147,30 @@ public class ConfigManager {
         String json = Files.readString(path);
 
         try {
-            return gson.fromJson(json, Config.class);
+            Config config = gson.fromJson(json, Config.class);
+            // Ensure defaults for any null fields (Gson sets missing fields to null)
+            ensureDefaults(config);
+            return config;
         } catch (JsonSyntaxException e) {
             System.err.println("❌ Invalid JSON in config file: " + configPath);
             System.err.println("   " + e.getMessage());
             throw e;
+        }
+    }
+
+    /**
+     * Ensure all nested objects have defaults if Gson left them null
+     */
+    private static void ensureDefaults(Config config) {
+        if (config == null) return;
+        if (config.directories == null) {
+            config.directories = new ArrayList<>();
+        }
+        if (config.reportSettings == null) {
+            config.reportSettings = new ReportSettings();
+        }
+        if (config.debugSettings == null) {
+            config.debugSettings = new DebugSettings();
         }
     }
 
