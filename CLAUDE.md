@@ -565,7 +565,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - Development workflow (issue → branch → PR)
-- Branch naming conventions (`feature/issue-N-description`)
+- Branch naming conventions (`feature/`, `fix/`, `hotfix/`, `chore/`, `docs/`)
 - Commit message format (Conventional Commits)
 - PR requirements (linked issues, status checks)
 - Labels and project management
@@ -696,7 +696,44 @@ Example console debug output:
 [DEBUG] Main: Saved script log to: 2026-01-05-14-30-00-CollectActivity.md
 ```
 
+## Task Management (Beads)
+
+This project uses [beads](https://github.com/steveyegge/beads) for AI-agent-friendly task tracking.
+
+**Quick Reference**:
+```bash
+# View ready (unblocked) tasks
+bd ready
+
+# Create a new task
+bd create "Implement feature X"
+
+# Create with priority
+bd create "Critical bug fix" -p 0
+
+# Update task status
+bd update <id> --status in_progress
+bd update <id> --status done
+
+# Close a task
+bd close <id> --reason "Implemented in PR #123"
+
+# Add dependency between tasks
+bd dep add <new-id> <blocking-id>
+
+# Export before committing (sync to git)
+bd export -o .beads/issues.jsonl
+```
+
+**Workflow**:
+1. `bd ready` - Find unblocked tasks
+2. `bd update <id> --status in_progress` - Claim work
+3. Implement the task
+4. `bd close <id> --reason "message"` - Complete task
+5. `bd export -o .beads/issues.jsonl` - Export for git
+6. Commit `.beads/issues.jsonl` with your code changes
+
 ---
 
-**Last Updated**: 2026-01-04
+**Last Updated**: 2026-01-05
 **Maintained By**: claude-md-guardian agent (auto-sync on major changes)
