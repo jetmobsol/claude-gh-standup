@@ -82,13 +82,15 @@ jobs:
           echo "🔍 Validating branch name: $BRANCH_NAME"
 
           # Check if branch follows naming convention
-          if [[ ! "$BRANCH_NAME" =~ ^(feature|fix|hotfix)/ ]]; then
+          if [[ ! "$BRANCH_NAME" =~ ^(feature|fix|hotfix|chore|docs)/ ]]; then
             echo "❌ Invalid branch name: $BRANCH_NAME"
             echo ""
             echo "Branch must start with one of:"
             echo "  - feature/  (for new features)"
             echo "  - fix/      (for bug fixes)"
             echo "  - hotfix/   (for critical fixes)"
+            echo "  - chore/    (for maintenance tasks)"
+            echo "  - docs/     (for documentation)"
             echo ""
             echo "Example: feature/issue-123-add-user-auth"
             exit 1

@@ -8,6 +8,8 @@ This project has been integrated with GitHub Actions workflows from [claude-code
 feature/* → master
 fix/* → master
 hotfix/* → master
+chore/* → master
+docs/* → master
 ```
 
 No `dev` or `staging` branches - all changes merge directly to `master` (or `main`) after passing quality gates.
@@ -128,7 +130,7 @@ gh workflow run bootstrap.yml
 **Triggers:** When a PR is opened, synchronized, or marked ready for review to `master` or `main`
 
 **What it does:**
-- ✅ Validates branch name (must be `feature/`, `fix/`, or `hotfix/`)
+- ✅ Validates branch name (must be `feature/`, `fix/`, `hotfix/`, `chore/`, or `docs/`)
 - ✅ Validates PR title (conventional commit format)
 - ✅ Ensures PR links to at least one issue
 - ✅ Runs quality checks (Java syntax, script validation)
@@ -295,7 +297,7 @@ Closes #42
 ## Troubleshooting
 
 ### "Branch name validation failed"
-**Fix:** Rename your branch to start with `feature/`, `fix/`, or `hotfix/`
+**Fix:** Rename your branch to start with `feature/`, `fix/`, `hotfix/`, `chore/`, or `docs/`
 ```bash
 git branch -m new-branch-name
 git push -u origin new-branch-name

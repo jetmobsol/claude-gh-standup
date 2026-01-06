@@ -18,6 +18,8 @@ Branch names must follow this pattern:
 feature/<issue-number>-brief-description
 fix/<issue-number>-brief-description
 hotfix/<issue-number>-brief-description
+chore/<issue-number>-brief-description
+docs/<issue-number>-brief-description
 ```
 
 Example:
