@@ -830,6 +830,7 @@ git push                # Push to remote
 - Always `bd sync` before ending session
 
 <!-- end-bv-agent-instructions -->
-    
+
 **Last Updated**: 2026-01-06
-**Maintained By**: claude-md-guardian agent (auto-sync on major changes)/
+**Maintained By**: claude-md-guardian agent (auto-sync on major changes)
+
