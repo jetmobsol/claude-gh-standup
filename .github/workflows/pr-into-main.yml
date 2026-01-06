@@ -198,10 +198,12 @@ jobs:
           script: |
             const prNumber = context.payload.pull_request.number;
             const prBody = context.payload.pull_request.body || '';
-            const actor = context.actor;
+            const prAuthor = context.payload.pull_request.user.login;
+            const branchName = context.payload.pull_request.head.ref;
 
             // Exempt Dependabot PRs from linked issue requirement
-            if (actor === 'dependabot[bot]') {
+            // Check both author and branch name to handle branch updates by other users
+            if (prAuthor === 'dependabot[bot]' || branchName.startsWith('dependabot/')) {
               console.log('✅ Dependabot PR - exempt from linked issue requirement');
               core.setOutput('has-linked-issue', 'true');
               core.setOutput('issue-numbers', '');
