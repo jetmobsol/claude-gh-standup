@@ -700,16 +700,40 @@ Example console debug output:
 
 This project uses [beads](https://github.com/steveyegge/beads) for AI-agent-friendly task tracking.
 
-**Quick Reference**:
+**See [AGENTS.md](AGENTS.md)** for detailed workflow patterns including:
+- When to use Beads vs OpenSpec decision table
+- Daily workflow (Orient → Pick → Implement → Complete)
+- Converting OpenSpec tasks to Beads with full context
+- Label conventions
+
+### STRICT RULE: Every `bd create` MUST include `-d`
+
+Issues must be **self-contained** - someone must understand the task with ONLY the description.
+
+**FORBIDDEN**:
+```bash
+bd create "Update file.ts" -t task
+```
+
+**REQUIRED**:
+```bash
+bd create "Add validation to user input" -t task -p 2 \
+  -d "## Requirements
+- Validate email format before submission
+- Show inline error message
+
+## Files to modify
+- src/components/UserForm.java"
+```
+
+### Quick Reference
+
 ```bash
 # View ready (unblocked) tasks
 bd ready
 
-# Create a new task
-bd create "Implement feature X"
-
-# Create with priority
-bd create "Critical bug fix" -p 0
+# Create a new task (ALWAYS include -d!)
+bd create "Task title" -t task -p 2 -d "## Requirements..."
 
 # Update task status
 bd update <id> --status in_progress
@@ -721,17 +745,18 @@ bd close <id> --reason "Implemented in PR #123"
 # Add dependency between tasks
 bd dep add <new-id> <blocking-id>
 
-# Export before committing (sync to git)
-bd export -o .beads/issues.jsonl
+# Sync before committing
+bd sync
 ```
 
-**Workflow**:
+### Workflow
+
 1. `bd ready` - Find unblocked tasks
 2. `bd update <id> --status in_progress` - Claim work
 3. Implement the task
 4. `bd close <id> --reason "message"` - Complete task
-5. `bd export -o .beads/issues.jsonl` - Export for git
-6. Commit `.beads/issues.jsonl` with your code changes
+5. `bd sync` - Sync beads database
+6. Commit and push your changes
 
 ---
 
@@ -798,6 +823,6 @@ git push                # Push to remote
 
 <!-- end-bv-agent-instructions -->
 
-**Last Updated**: 2026-01-05
+**Last Updated**: 2026-01-06
 **Maintained By**: claude-md-guardian agent (auto-sync on major changes)
 
