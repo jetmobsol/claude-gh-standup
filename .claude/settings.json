@@ -4,7 +4,23 @@
       "Bash(jbang:*)",
       "Bash(tee:*)",
       "Bash(mkdir:*)",
-      "Bash(openspec:*)"
+      "Bash(openspec:*)",
+      "Bash(gh pr close:*)",
+      "Bash(git checkout:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr checks:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(gh pr list:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh issue create --title \"fix\\(ci\\): Dependabot PR linked issue check fails after branch update\" --body \"$\\(cat <<''EOF''\n## Problem\n\nWhen a Dependabot PR branch is updated \\(e.g., via `gh pr update-branch`\\), the CI workflow''s linked issue check fails because it was checking `context.actor` instead of the PR author or branch name.\n\nThe `context.actor` changes to whoever triggered the branch update, causing the Dependabot exemption to not apply.\n\n## Solution\n\nCheck both `context.payload.pull_request.user.login` \\(PR author\\) and `context.payload.pull_request.head.ref` \\(branch name\\) to properly exempt Dependabot PRs regardless of who updates the branch.\nEOF\n\\)\")",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "WebFetch(domain:www.reddit.com)",
+      "Bash(bd create:*)"
     ]
   }
 }
