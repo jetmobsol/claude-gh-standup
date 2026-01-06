@@ -4,9 +4,10 @@
 # Validates pull requests before merging to main/master (simple branching).
 #
 # Validations:
-# - Source branch must be feature/*, fix/*, or hotfix/*
+# - Source branch must be feature/*, fix/*, hotfix/*, chore/*, or docs/*
+# - Dependabot branches (dependabot/*) are automatically allowed
 # - PR title must follow conventional commit format
-# - At least one issue must be linked
+# - At least one issue must be linked (Dependabot PRs exempt)
 # - All quality gates must pass
 # - Fork PRs run read-only checks
 #
@@ -80,6 +81,12 @@ jobs:
         run: |
           BRANCH_NAME="${{ github.head_ref }}"
           echo "🔍 Validating branch name: $BRANCH_NAME"
+
+          # Allow Dependabot branches (automated dependency updates)
+          if [[ "$BRANCH_NAME" =~ ^dependabot/ ]]; then
+            echo "✅ Dependabot branch allowed: $BRANCH_NAME"
+            exit 0
+          fi
 
           # Check if branch follows naming convention
           if [[ ! "$BRANCH_NAME" =~ ^(feature|fix|hotfix|chore|docs)/ ]]; then
@@ -191,6 +198,15 @@ jobs:
           script: |
             const prNumber = context.payload.pull_request.number;
             const prBody = context.payload.pull_request.body || '';
+            const actor = context.actor;
+
+            // Exempt Dependabot PRs from linked issue requirement
+            if (actor === 'dependabot[bot]') {
+              console.log('✅ Dependabot PR - exempt from linked issue requirement');
+              core.setOutput('has-linked-issue', 'true');
+              core.setOutput('issue-numbers', '');
+              return;
+            }
 
             // Regex to find linked issues: Closes #123, Fixes #456, Relates to #789
             const issueRegex = /(close[sd]?|fix(e[sd])?|resolve[sd]?|relates?\s+to)\s+#(\d+)/gi;
