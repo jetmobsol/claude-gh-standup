@@ -93,6 +93,98 @@ claude-gh-standup/
 - **openspec/**: Architectural change management using OpenSpec specification
 ```
 
+## DDD Architecture (Domain-Driven Design)
+
+This project follows a Domain-Driven Design architecture with Ports & Adapters pattern. The domain layer contains pure business logic with no external dependencies.
+
+### Architecture Overview
+
+```
+scripts/
+├── domain/                         # Pure domain entities (no external deps)
+│   ├── activity/                   # Activity bounded context
+│   │   ├── Commit.java             # Commit entity
+│   │   ├── PullRequest.java        # PR entity
+│   │   ├── Issue.java              # Issue entity
+│   │   ├── Review.java             # Code review entity
+│   │   └── Activity.java           # Aggregate root
+│   ├── report/                     # Report bounded context
+│   │   ├── DiffSummary.java        # File change statistics
+│   │   ├── ReportSection.java      # Report section value object
+│   │   └── StandupReport.java      # Aggregate root
+│   ├── team/                       # Team bounded context
+│   │   ├── TeamMember.java         # Team member entity
+│   │   └── TeamReport.java         # Aggregate root
+│   └── shared/                     # Cross-cutting value objects
+│       ├── DateRange.java          # Date range value object
+│       └── Repository.java         # owner/repo value object
+├── ports/                          # Interfaces for external dependencies
+│   ├── ActivityPort.java           # Fetch activity from GitHub
+│   ├── DiffPort.java               # Fetch PR diffs
+│   ├── GitPort.java                # Local git operations
+│   ├── ReportGeneratorPort.java    # AI report generation
+│   └── ExportPort.java             # Export to formats
+├── infrastructure/                 # Implementations of ports
+│   ├── github/GitHubCliAdapter.java    # gh CLI integration
+│   ├── git/GitCliAdapter.java          # git CLI integration
+│   ├── ai/ClaudeCliAdapter.java        # claude CLI integration
+│   └── export/                         # Format exporters
+│       ├── MarkdownExporter.java
+│       ├── JsonExporter.java
+│       └── HtmlExporter.java
+├── services/                       # Application logic (orchestration)
+│   ├── ActivityService.java        # Collects activity using ports
+│   ├── DiffService.java            # Analyzes diffs using ports
+│   ├── ReportService.java          # Generates reports using ports
+│   └── TeamService.java            # Aggregates team reports
+└── Main.java                       # Entry point (legacy, uses old scripts)
+
+test/
+├── domain/                         # Domain entity tests
+├── ports/                          # Port compilation tests
+├── mocks/                          # Mock implementations for testing
+├── services/                       # Service tests with mocks
+├── infrastructure/                 # Infrastructure tests
+└── RunAllTests.java                # Unified test runner
+```
+
+### Key Principles
+
+1. **Domain Layer is Pure**: No external dependencies (Gson, ProcessBuilder, etc.). Only Java standard library.
+
+2. **Ports Define Contracts**: Interfaces in `ports/` define what operations the application needs, not how they're implemented.
+
+3. **Adapters Implement Ports**: Infrastructure adapters in `infrastructure/` implement port interfaces using external tools (gh CLI, git, claude).
+
+4. **Services Orchestrate**: Services in `services/` coordinate domain entities and ports to fulfill use cases.
+
+5. **Test with Mocks**: Services are tested using mock ports (`test/mocks/`), not real CLI tools.
+
+### Running Tests
+
+```bash
+# Run all DDD tests (129 tests)
+jbang test/RunAllTests.java
+
+# Run specific test file
+jbang test/domain/activity/CommitTest.java
+jbang test/services/ActivityServiceTest.java
+```
+
+### Adding New Domain Entities
+
+1. Create entity in `scripts/domain/<context>/Entity.java`
+2. Add validation in compact constructor
+3. Create test in `test/domain/<context>/EntityTest.java`
+4. Run tests: `jbang test/domain/<context>/EntityTest.java`
+
+### Adding New Ports/Adapters
+
+1. Define interface in `scripts/ports/NewPort.java`
+2. Create mock in `test/mocks/MockNewPort.java`
+3. Implement adapter in `scripts/infrastructure/<area>/NewAdapter.java`
+4. Write tests for mock and adapter
+
 ## Development Setup
 
 ### Prerequisites
@@ -573,7 +665,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - Development workflow (issue → branch → PR)
-- Branch naming conventions (`feature/`, `fix/`, `hotfix/`, `chore/`, `docs/`)
+- Branch naming conventions (`feature/`, `fix/`, `hotfix/`, `chore/`, `docs/`, `refactor/`)
 - Commit message format (Conventional Commits)
 - PR requirements (linked issues, status checks)
 - Labels and project management
