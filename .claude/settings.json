@@ -20,7 +20,10 @@
       "Bash(git pull:*)",
       "Bash(git stash:*)",
       "WebFetch(domain:www.reddit.com)",
-      "Bash(bd create:*)"
-    ]
+      "Bash(bd create:*)",
+      "Bash(bd list:*)",
+      "Bash(bd ready:*)",
+      "Bash(bd update:*)",
+      "Bash(bd show:*)"    ]
   }
 }

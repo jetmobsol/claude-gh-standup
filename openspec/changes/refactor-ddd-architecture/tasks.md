@@ -3,16 +3,16 @@
 ## 1. Domain Entities (TDD)
 
 ### 1.1 Activity Bounded Context
-- [ ] 1.1.1 Write CommitTest.java with JSON parsing and equality tests
-- [ ] 1.1.2 Create Commit.java record to pass tests
-- [ ] 1.1.3 Write PullRequestTest.java
-- [ ] 1.1.4 Create PullRequest.java record
-- [ ] 1.1.5 Write IssueTest.java
-- [ ] 1.1.6 Create Issue.java record
-- [ ] 1.1.7 Write ReviewTest.java
-- [ ] 1.1.8 Create Review.java record
-- [ ] 1.1.9 Write ActivityTest.java (aggregate tests)
-- [ ] 1.1.10 Create Activity.java aggregate
+- [x] 1.1.1 Write CommitTest.java with JSON parsing and equality tests
+- [x] 1.1.2 Create Commit.java record to pass tests
+- [x] 1.1.3 Write PullRequestTest.java
+- [x] 1.1.4 Create PullRequest.java record
+- [x] 1.1.5 Write IssueTest.java
+- [x] 1.1.6 Create Issue.java record
+- [x] 1.1.7 Write ReviewTest.java
+- [x] 1.1.8 Create Review.java record
+- [x] 1.1.9 Write ActivityTest.java (aggregate tests)
+- [x] 1.1.10 Create Activity.java aggregate
 
 ### 1.2 Report Bounded Context
 - [ ] 1.2.1 Write DiffSummaryTest.java
