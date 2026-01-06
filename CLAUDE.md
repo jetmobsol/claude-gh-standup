@@ -162,31 +162,6 @@ jbang scripts/TeamAggregator.java alice bob charlie 7
 # If not visible, restart Claude Code or check installation path
 ```
 
-### Testing Scripts Individually
-
-Each Java script can be tested independently with JBang:
-
-```bash
-# CollectActivity.java - Fetches GitHub activity
-jbang scripts/CollectActivity.java <username> <days> [repo]
-
-# Example:
-jbang scripts/CollectActivity.java octocat 3
-jbang scripts/CollectActivity.java octocat 7 owner/repo
-
-# AnalyzeDiffs.java - Parses PR diffs for file statistics
-jbang scripts/AnalyzeDiffs.java '<activity-json>'
-
-# GenerateReport.java - Calls Claude AI
-jbang scripts/GenerateReport.java '<activity-json>' '<diff-summary>'
-
-# ExportUtils.java - Format conversion
-jbang scripts/ExportUtils.java '<report-content>' <format> [output-file]
-
-# TeamAggregator.java - Multi-user consolidation
-jbang scripts/TeamAggregator.java user1 user2 user3 <days> [repo]
-```
-
 ## Code Patterns & Conventions
 
 ### JBang Script Pattern
@@ -855,7 +830,6 @@ git push                # Push to remote
 - Always `bd sync` before ending session
 
 <!-- end-bv-agent-instructions -->
-
+    
 **Last Updated**: 2026-01-06
-**Maintained By**: claude-md-guardian agent (auto-sync on major changes)
-
+**Maintained By**: claude-md-guardian agent (auto-sync on major changes)/
