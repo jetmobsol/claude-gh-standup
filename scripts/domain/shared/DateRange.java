@@ -59,7 +59,8 @@ public record DateRange(LocalDate start, LocalDate end) {
     }
 
     /**
-     * Calculate the number of days in this range.
+     * Calculate the number of days between start and end (exclusive of end).
+     * For a range of Jan 1 to Jan 3, this returns 2.
      */
     public long days() {
         return ChronoUnit.DAYS.between(start, end);

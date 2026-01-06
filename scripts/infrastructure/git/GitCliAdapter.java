@@ -16,6 +16,7 @@ public class GitCliAdapter implements GitPort {
             String output = executeInDir(repoPath, "git", "rev-parse", "--abbrev-ref", "HEAD");
             return output.trim();
         } catch (Exception e) {
+            System.err.println("Warning: Failed to detect current branch at " + repoPath + " - " + e.getMessage());
             return "unknown";
         }
     }
@@ -31,6 +32,7 @@ public class GitCliAdapter implements GitPort {
                 .filter(s -> !s.isBlank())
                 .toList();
         } catch (Exception e) {
+            System.err.println("Warning: Failed to get staged files at " + repoPath + " - " + e.getMessage());
             return List.of();
         }
     }
@@ -46,6 +48,7 @@ public class GitCliAdapter implements GitPort {
                 .filter(s -> !s.isBlank())
                 .toList();
         } catch (Exception e) {
+            System.err.println("Warning: Failed to get unstaged files at " + repoPath + " - " + e.getMessage());
             return List.of();
         }
     }
@@ -62,6 +65,7 @@ public class GitCliAdapter implements GitPort {
                 .filter(s -> !s.isBlank())
                 .toList();
         } catch (Exception e) {
+            System.err.println("Warning: Failed to get unpushed commits on " + branch + " at " + repoPath + " - " + e.getMessage());
             return List.of();
         }
     }
@@ -72,6 +76,7 @@ public class GitCliAdapter implements GitPort {
             String remoteUrl = executeInDir(repoPath, "git", "remote", "get-url", "origin");
             return parseGitRemote(remoteUrl.trim());
         } catch (Exception e) {
+            System.err.println("Note: Could not detect repository at " + repoPath + " - " + e.getMessage());
             return Optional.empty();
         }
     }

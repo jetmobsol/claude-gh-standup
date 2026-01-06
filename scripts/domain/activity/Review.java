@@ -5,7 +5,8 @@
  * JSON parsing happens in the infrastructure layer (adapters).
  *
  * @param prNumber   The PR number this review belongs to (required, positive)
- * @param state      The review state: "APPROVED", "CHANGES_REQUESTED", "COMMENTED", "PENDING" (required)
+ * @param state      The review state: "APPROVED", "CHANGES_REQUESTED", "COMMENTED", "PENDING", "DISMISSED",
+ *                   or "REVIEWED" (synthetic state when actual state is unavailable) (required)
  * @param body       The review comment body (optional, can be null or empty)
  * @param url        The URL to view the review on GitHub (optional)
  * @param repository The repository in "owner/repo" format (optional)
