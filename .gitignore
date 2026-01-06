@@ -13,3 +13,6 @@ Thumbs.db
 # Temp files
 *.tmp
 *.log
+
+# bv (beads viewer) local config and caches
+.bv/
