@@ -22,6 +22,39 @@ This is a Claude Code slash command that generates AI-powered standup reports fr
 - Project files: `~/.claude-gh-standup/`
 - Command symlink: `~/.claude/commands/claude-gh-standup.md` → points to project's `.claude/commands/claude-gh-standup.md`
 
+## Working Style & Approach
+
+**CRITICAL: Think First, Code Once - Not the Other Way Around**
+
+When tackling any non-trivial task, especially those involving complex systems (API integrations, workflow orchestration, CLI parsing, etc.):
+
+### Required Process
+
+1. **ANALYZE FIRST** - Read and understand ALL relevant code before making any changes
+2. **MAP THE SYSTEM** - Identify all dependencies, interactions, and potential side effects
+3. **CLARIFY REQUIREMENTS** - If ANYTHING is unclear, ambiguous, or could be interpreted multiple ways, **STOP and ASK QUESTIONS**. Never assume or guess at requirements.
+4. **DESIGN COMPLETE SOLUTION** - Think through the entire approach on "paper" first
+5. **PRESENT THE PLAN** - Explain the strategy clearly before writing any code
+6. **IMPLEMENT CAREFULLY** - Make changes systematically, following the agreed plan
+7. **STICK TO THE PLAN** - Don't pivot to quick fixes that create new problems
+
+### Absolutely Forbidden
+
+- ❌ Making reactive changes without understanding root causes
+- ❌ Fixing one bug and creating another (going in circles)
+- ❌ Changing approach multiple times mid-task
+- ❌ Quick fixes that break other things
+- ❌ Jumping to implementation before thorough analysis
+
+### If You Get Stuck
+
+1. **STOP** - Don't keep trying random fixes
+2. **STEP BACK** - Re-analyze the entire system
+3. **ASK** - Request clarification or context from the user
+4. **REDESIGN** - Create a new plan based on better understanding
+
+**Remember:** Breaking more things than you fix wastes time and causes frustration. Spending 10 minutes on proper analysis upfront is better than 60 minutes going in circles.
+
 ## Project Structure
 
 ```
@@ -700,16 +733,40 @@ Example console debug output:
 
 This project uses [beads](https://github.com/steveyegge/beads) for AI-agent-friendly task tracking.
 
-**Quick Reference**:
+**See [AGENTS.md](AGENTS.md)** for detailed workflow patterns including:
+- When to use Beads vs OpenSpec decision table
+- Daily workflow (Orient → Pick → Implement → Complete)
+- Converting OpenSpec tasks to Beads with full context
+- Label conventions
+
+### STRICT RULE: Every `bd create` MUST include `-d`
+
+Issues must be **self-contained** - someone must understand the task with ONLY the description.
+
+**FORBIDDEN**:
+```bash
+bd create "Update file.ts" -t task
+```
+
+**REQUIRED**:
+```bash
+bd create "Add validation to user input" -t task -p 2 \
+  -d "## Requirements
+- Validate email format before submission
+- Show inline error message
+
+## Files to modify
+- src/components/UserForm.java"
+```
+
+### Quick Reference
+
 ```bash
 # View ready (unblocked) tasks
 bd ready
 
-# Create a new task
-bd create "Implement feature X"
-
-# Create with priority
-bd create "Critical bug fix" -p 0
+# Create a new task (ALWAYS include -d!)
+bd create "Task title" -t task -p 2 -d "## Requirements..."
 
 # Update task status
 bd update <id> --status in_progress
@@ -721,17 +778,18 @@ bd close <id> --reason "Implemented in PR #123"
 # Add dependency between tasks
 bd dep add <new-id> <blocking-id>
 
-# Export before committing (sync to git)
-bd export -o .beads/issues.jsonl
+# Sync before committing
+bd sync
 ```
 
-**Workflow**:
+### Workflow
+
 1. `bd ready` - Find unblocked tasks
 2. `bd update <id> --status in_progress` - Claim work
 3. Implement the task
 4. `bd close <id> --reason "message"` - Complete task
-5. `bd export -o .beads/issues.jsonl` - Export for git
-6. Commit `.beads/issues.jsonl` with your code changes
+5. `bd sync` - Sync beads database
+6. Commit and push your changes
 
 ---
 
@@ -798,6 +856,6 @@ git push                # Push to remote
 
 <!-- end-bv-agent-instructions -->
 
-**Last Updated**: 2026-01-05
+**Last Updated**: 2026-01-06
 **Maintained By**: claude-md-guardian agent (auto-sync on major changes)
 
