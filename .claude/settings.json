@@ -24,6 +24,9 @@
       "Bash(bd list:*)",
       "Bash(bd ready:*)",
       "Bash(bd update:*)",
-      "Bash(bd show:*)"    ]
+      "Bash(bd show:*)",
+      "Bash(bd sync:*)",
+      "Bash(bd close:*)"
+    ]
   }
 }
