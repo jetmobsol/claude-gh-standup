@@ -665,7 +665,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - Development workflow (issue → branch → PR)
-- Branch naming conventions (`feature/`, `fix/`, `hotfix/`, `chore/`, `docs/`)
+- Branch naming conventions (`feature/`, `fix/`, `hotfix/`, `chore/`, `docs/`, `refactor/`)
 - Commit message format (Conventional Commits)
 - PR requirements (linked issues, status checks)
 - Labels and project management

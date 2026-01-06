@@ -4,7 +4,7 @@
 # Validates pull requests before merging to main/master (simple branching).
 #
 # Validations:
-# - Source branch must be feature/*, fix/*, hotfix/*, chore/*, or docs/*
+# - Source branch must be feature/*, fix/*, hotfix/*, chore/*, docs/*, or refactor/*
 # - Dependabot branches (dependabot/*) are automatically allowed
 # - PR title must follow conventional commit format
 # - At least one issue must be linked (Dependabot PRs exempt)
@@ -15,6 +15,7 @@
 # feature/* → master/main
 # fix/* → master/main
 # hotfix/* → master/main
+# refactor/* → master/main
 #
 # Author: Adapted from Alireza Rezvani
 # ─────────────────────────────────────────────────────────────────
@@ -89,7 +90,7 @@ jobs:
           fi
 
           # Check if branch follows naming convention
-          if [[ ! "$BRANCH_NAME" =~ ^(feature|fix|hotfix|chore|docs)/ ]]; then
+          if [[ ! "$BRANCH_NAME" =~ ^(feature|fix|hotfix|chore|docs|refactor)/ ]]; then
             echo "❌ Invalid branch name: $BRANCH_NAME"
             echo ""
             echo "Branch must start with one of:"
@@ -98,6 +99,7 @@ jobs:
             echo "  - hotfix/   (for critical fixes)"
             echo "  - chore/    (for maintenance tasks)"
             echo "  - docs/     (for documentation)"
+            echo "  - refactor/ (for code refactoring)"
             echo ""
             echo "Example: feature/issue-123-add-user-auth"
             exit 1
