@@ -240,7 +240,7 @@ jobs:
 
     steps:
       - name: Download validated plan
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: validated-plan
 
