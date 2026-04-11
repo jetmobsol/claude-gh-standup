@@ -141,7 +141,7 @@ jobs:
 
       - name: Add comment on invalid title
         if: failure()
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           github-token: ${{ github.token }}
           script: |
@@ -194,7 +194,7 @@ jobs:
     steps:
       - name: Check for linked issues
         id: check-linked-issue
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           github-token: ${{ github.token }}
           script: |
@@ -229,7 +229,7 @@ jobs:
 
       - name: Add comment on missing linked issue
         if: failure()
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           github-token: ${{ github.token }}
           script: |
